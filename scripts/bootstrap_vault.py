@@ -1195,6 +1195,7 @@ def bootstrap(vault: Path, name: str, preset_key: str, mode: str, subject: str,
     print(f"\n✅ Vault bootstrapped at: {vault}")
     print("\n📋 Recommended Obsidian plugins:")
     print("   • Bases     - powers the Bases/ live views (core plugin, enable in Settings)")
+    print("   • Dataview  - powers the Home.md / Health Dashboard queries")
     print("   • Templater - powers the Templates/ folder")
     print("   • Kanban    - powers the Boards/ folder")
     print("   • Calendar  - daily note navigation")
