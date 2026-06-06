@@ -257,7 +257,7 @@ setup_git_assume_unchanged() {
   fi
 
   # Then mark all converted files as assume-unchanged
-  local count=0 f flags ext
+  local count=0
   for f in "${tracked[@]}"; do
     is_our_file "$f" && continue
 
@@ -275,6 +275,30 @@ setup_git_assume_unchanged() {
   done
 
   info "Marked $count files as assume-unchanged."
+
+  # Verification pass: after sed+cp in apply_content_renames, converted files
+  # got new inodes and the assume-unchanged flag was dropped.  Catch stragglers
+  # via `git status --porcelain`: any modified file with a convertible extension
+  # that is NOT one of OUR_FILES should be assume-unchanged.  Force-mark it.
+  local stragglers=0
+  while IFS= read -r line; do
+    local state="${line:0:2}"
+    local path="${line:3}"
+    # Only care about unstaged modified files ( M  or  M )
+    [[ "$state" =~ ^[M\ ]M$ ]] || continue
+    is_our_file "$path" && continue
+    ext="${path##*.}"
+    case "$ext" in
+      md|py|sh|yml|yaml|json|toml|html|cff|txt) ;;
+      *) continue ;;
+    esac
+    git -C "$REPO_ROOT" update-index --assume-unchanged "$path"
+    stragglers=$((stragglers + 1))
+  done < <(git -C "$REPO_ROOT" status --porcelain 2>/dev/null)
+
+  if [[ $stragglers -gt 0 ]]; then
+    warn "Verification pass: force-marked $stragglers converted file(s) with new inodes."
+  fi
 }
 
 # ── Main ───────────────────────────────────────────────────────────────────────

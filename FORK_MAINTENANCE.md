@@ -51,24 +51,67 @@ This replaces all banned characters with ASCII equivalents while preserving code
 After every upstream pull:
 
 ```bash
-# 1. Fetch upstream changes
-git pull upstream main
+# 1. Fetch and rebase (NO merge commits)
+git fetch upstream
+git rebase upstream/main
 
 # 2. Apply generic naming to the fresh upstream content
 bash scripts/convert.sh --apply
 
-# 3. Refresh git assume-unchanged (if files were added upstream)
+# 3. Set assume-unchanged on converted files
 bash scripts/convert.sh --setup
 
 # 4. Verify the conversion took
 bash scripts/convert.sh --status
 ```
 
-## Git assume-unchanged
+## Git assume-unchanged — how it works
 
-To keep `git status` clean, the conversion uses `git update-index --assume-unchanged` on all transformed files. Git will not check these files for local modifications, so `pull` produces clean merges.
+To keep `git status` clean, the conversion marks transformed files with
+`git update-index --assume-unchanged`. Git will not check these files for local
+modifications, so pull/rebase produce clean merges.
 
-Run `bash scripts/convert.sh --setup` after the initial conversion and after any upstream pull that adds new text files.
+Run `bash scripts/convert.sh --setup` after every `--apply`.
+
+### Why the flag can be silently lost
+
+The conversion replaces file content using `cp "$tmp" "$f"` (see
+`apply_content_renames` in `scripts/convert.sh`). This creates a **new inode**
+for each converted file. Git's assume-unchanged flag is **per-inode**, so the
+old flag doesn't carry over:
+
+- **After `--setup`**: the main loop catches files still at `H`. Then a
+  verification pass (`git status --porcelain`) force-marks any dirty converted
+  file that slipped through — this is what catches the inode-flipped files.
+- **After a rebase or branch switch**: git may drop the flag even when the file
+  content matches the conversion (because the committed blob SHA changed).
+  `--setup` re-applies the flag in both passes.
+- **After `git checkout <file>`**: git may re-mark files as assume-unchanged
+  (including `OUR_FILES`). The `--setup` loop unmarks OUR_FILES first.
+
+### How an AI agent evaluates assume-unchanged state
+
+After a rebase or merge, the AI should verify and fix assume-unchanged state
+before yielding.  The logic:
+
+1. **Run `git status`.** If clean, done. If dirty, proceed.
+2. **Run `git ls-files -v | grep '^h'`** — see what's already marked.
+3. **Run `git ls-files -v | grep '^H' | grep -E '\.(md|py|sh|yml|yaml|json|toml|html|cff|txt)$'`** — see converted files that lost the flag.
+4. **Cross-check against OUR_FILES** (`scripts/convert.sh` lines 80-85). If the
+   `H` file is one of ours (e.g. `FORK_MAINTENANCE.md`), it should stay `H` —
+   that's expected. If the `H` file is a converted file, the flag needs fixing.
+5. **Run `bash scripts/convert.sh --setup`** — this does both passes (main +
+   verification) and handles the OUR_FILES unmarking.
+6. **Re-check `git status`.** If any converted files still show as modified,
+   they have a new inode that the verification pass missed.  Run
+   `git update-index --assume-unchanged <path>` for each one.
+7. **If `git status` is now clean**, done. If not (e.g. our own files,
+   staged changes, untracked files), those are real changes to handle normally.
+
+A stale `convert.sh --setup` leaves a non-rebasing AI in a state where every
+upstream pull produces a messy `git status`.  The fix is always one of:
+`--setup` (flag dropped by rebase) or `git update-index --assume-unchanged`
+(inode mismatch from content edit).
 
 Useful commands:
 
@@ -76,12 +119,14 @@ Useful commands:
 # See which files are marked assume-unchanged
 git ls-files -v | grep '^h'
 
+# See which files should be marked but aren't (inode mismatch)
+git ls-files -v | grep '^H' | grep -E '\.(md|py|sh|yml|yaml|json|toml|html|cff|txt)$'
+
 # Unmark a single file temporarily
 git update-index --no-assume-unchanged <path>
 
 # Force git to re-check all assume-unchanged files
 git update-index --really-refresh
-```
 
 ## Gitignore
 
