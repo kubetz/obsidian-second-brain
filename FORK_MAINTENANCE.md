@@ -33,6 +33,19 @@ We keep our permanent diff against upstream small - only additive files and targ
 
 The ephemeral transform outputs (the new filenames) are gitignored. Only `scripts/convert.sh` itself is committed with these patterns.
 
+
+## After editing our own files
+
+Our fork-owned files sometimes contain banned substitution characters (curly quotes, em-dashes, typographic apostrophes) from prose writing. The CI pipeline checks for these with `scripts/sweep_non_ascii.py --check` and will fail if they're present.
+
+Before committing:
+
+```bash
+python scripts/sweep_non_ascii.py --apply
+```
+
+This replaces all banned characters with ASCII equivalents while preserving code fences and backtick spans.
+
 ## The pull + convert ritual
 
 After every upstream pull:
@@ -96,7 +109,7 @@ git update-index --no-assume-unchanged <path>
 ```
 Then stage, commit, re-run `bash scripts/convert.sh --setup`.
 
-**Caveat:** After a `git checkout` (switching branches, restoring a file), git may re-mark some files as assume-unchanged. Always verify with `git status` before committing. If your FORK_MAINTENANCE.md or convert.sh edits are missing from the final diff, this is almost certainly why — check `git ls-files -v | grep '^h'` for unexpectedly marked files.
+**Caveat:** After a `git checkout` (switching branches, restoring a file), git may re-mark some files as assume-unchanged. Always verify with `git status` before committing. If your FORK_MAINTENANCE.md or convert.sh edits are missing from the final diff, this is almost certainly why - check `git ls-files -v | grep '^h'` for unexpectedly marked files.
 
 ## When things conflict
 

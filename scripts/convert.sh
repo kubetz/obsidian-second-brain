@@ -57,7 +57,7 @@ declare -a PATTERNS=(
   'Claude, update my _AGENTS.md:update my _AGENTS.md'
 )
 
-# Hardcoded author repo path — replaced with neutral instruction
+# Hardcoded author repo path - replaced with neutral instruction
 # pyproject.toml and uv.lock are symlinked into the vault by setup.sh
 # so uv run -m works from the vault directory directly.
 declare -a REPO_PATH_PATTERNS=(
