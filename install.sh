@@ -6,20 +6,33 @@ SKILL_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CLAUDE_DIR="$HOME/.claude"
 COMMANDS_DIR="$CLAUDE_DIR/commands"
 SKILLS_DIR="$CLAUDE_DIR/skills"
+OMP_SKILLS_DIR="$HOME/.omp/agent/skills"
 CONFIG_DIR="$HOME/.config/obsidian-second-brain"
 ENV_FILE="$CONFIG_DIR/.env"
+INSTALL_TARGET="${1:-claude}"  # claude (default) or omp
 
 echo "Installing obsidian-second-brain..."
+
+case "$INSTALL_TARGET" in
+  claude) echo "  Target: Claude Code" ;;
+  omp)    echo "  Target: Oh My Pi (~/.omp/agent/skills/)" ;;
+  *)      echo "  Unknown target: $INSTALL_TARGET (use: claude or omp)"; exit 1 ;;
+esac
+echo ""
 
 # Create directories if needed
 mkdir -p "$COMMANDS_DIR"
 mkdir -p "$SKILLS_DIR"
+mkdir -p "$OMP_SKILLS_DIR"
 
 # Detect platform once
 case "$(uname -s)" in
   MINGW*|MSYS*|CYGWIN*) IS_WINDOWS=1 ;;
   *) IS_WINDOWS=0 ;;
 esac
+
+# ── Claude Code install ───────────────────────────────────────────────
+if [ "$INSTALL_TARGET" = "claude" ]; then
 
 # Link commands into ~/.claude/commands/ (copy on Windows without Developer Mode)
 echo "Installing slash commands..."
@@ -62,6 +75,40 @@ else
   fi
 fi
 
+echo ""
+echo "Done. Restart Claude Code to activate the commands."
+
+fi
+
+# ── Oh My Pi install ───────────────────────────────────────────────────
+if [ "$INSTALL_TARGET" = "omp" ]; then
+
+OMP_LINK="$OMP_SKILLS_DIR/obsidian-second-brain"
+if [ -e "$OMP_LINK" ]; then
+  echo "Skill already linked at $OMP_LINK"
+elif [ "$IS_WINDOWS" -eq 0 ]; then
+  ln -s "$SKILL_DIR" "$OMP_LINK"
+  echo "Skill linked at $OMP_LINK"
+else
+  cp -R "$SKILL_DIR" "$OMP_LINK"
+  echo "Skill copied to $OMP_LINK"
+fi
+
+# Also symlink commands into OMP's command path
+OMP_COMMANDS_DIR="$HOME/.omp/commands"
+mkdir -p "$OMP_COMMANDS_DIR"
+for file in "$SKILL_DIR/commands/"*.md; do
+  name=$(basename "$file")
+  dest="$OMP_COMMANDS_DIR/$name"
+  [ -e "$dest" ] || [ -L "$dest" ] && continue
+  ln -s "$file" "$dest"
+done
+echo "Commands linked into ~/.omp/commands/"
+
+echo ""
+echo "Done. Your OMP agent will load the skill on the next session."
+
+fi
 # ── Research toolkit setup (optional) ──────────────────────────────
 echo ""
 echo "Research toolkit (optional): /x-read, /x-pulse, /research, /research-deep, /youtube"
@@ -104,7 +151,6 @@ if [[ "$setup_research" =~ ^[Yy]$ ]]; then
   echo "    YOUTUBE_API_KEY=      (https://console.cloud.google.com - optional)"
   echo ""
   read -r -p "  Press Enter to open the file in your default editor (or Ctrl+C to skip)... " _
-  # Pick a default opener if $EDITOR is unset. Original used `open` (macOS-only).
   default_editor=open
   case "$(uname -s)" in
     Linux)                default_editor=xdg-open ;;
@@ -113,9 +159,10 @@ if [[ "$setup_research" =~ ^[Yy]$ ]]; then
   ${EDITOR:-$default_editor} "$ENV_FILE"
 fi
 
-echo ""
-echo "Done. Restart Claude Code to activate the commands."
+
+# ── Common: next steps ────────────────────────────────────────────────
 echo ""
 echo "Next steps:"
-echo "  1. Run /obsidian-init to generate your vault's _CLAUDE.md"
+echo "  1. Run /obsidian-init to generate your vault's _AGENTS.md"
 echo "  2. (If research toolkit installed) Verify keys: cat $ENV_FILE"
+echo ""
