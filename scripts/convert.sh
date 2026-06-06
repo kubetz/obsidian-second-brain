@@ -46,6 +46,13 @@ declare -a PATTERNS=(
   'future Claude:future agent'
   # Future Claude (space, capital) → Future agent
   'Future Claude:Future agent'
+  # Bootstrap template strings - bare "Claude" as generic agent reference
+  'Claude Operating Manual:Vault Operating Manual'
+  'Claude should auto-save:The agent should auto-save'
+  'Claude should **ask**:The agent should **ask**'
+  'Claude automatically saves:The agent automatically saves'
+  'Claude will read it:the agent will read it'
+  'Claude, update my _AGENTS.md:update my _AGENTS.md'
 )
 
 # ── Template file renames ─────────────────────────────────────────────────────
@@ -128,6 +135,7 @@ apply_content_renames() {
 
   find "$REPO_ROOT" \
     -path "$REPO_ROOT/.git" -prune -o \
+    -path "$REPO_ROOT/.venv" -prune -o \
     -path "$REPO_ROOT/dist" -prune -o \
     -path "$REPO_ROOT/scripts/convert.sh" -prune -o \
     -type f -print \
@@ -151,6 +159,8 @@ apply_content_renames() {
       *) ;;
     esac
 
+
+    local dirty=0
     cp "$f" "$tmp"
 
     # Apply content patterns
