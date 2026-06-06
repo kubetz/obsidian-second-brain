@@ -12,6 +12,8 @@
 #   4. references/claude-md-template.md      → references/agents-md-template.md
 #      references/claude-md-assistant-template.md → ...-assistant-template.md
 #   5. Template file renames on disk
+#   6. ~/Projects/personal/obsidian-second-brain/ → neutral instruction
+#      (pyproject.toml + uv.lock symlinked into vault, so uv run works from vault CWD)
 #
 # Usage:
 #   bash scripts/convert.sh                        # dry-run (preview only)
@@ -55,6 +57,13 @@ declare -a PATTERNS=(
   'Claude, update my _AGENTS.md:update my _AGENTS.md'
 )
 
+# Hardcoded author repo path — replaced with neutral instruction
+# pyproject.toml and uv.lock are symlinked into the vault by setup.sh
+# so uv run -m works from the vault directory directly.
+declare -a REPO_PATH_PATTERNS=(
+  'Run the Python command from the repo root:Run the Python research command'
+)
+
 # ── Template file renames ─────────────────────────────────────────────────────
 declare -a TEMPLATE_RENAMES=(
   'references/claude-md-template.md:references/agents-md-template.md'
@@ -71,6 +80,7 @@ declare -a TEMPLATE_REFS=(
 declare -a OUR_FILES=(
   'adapters/omp/adapter.sh'
   'scripts/convert.sh'
+  'scripts/setup.sh'
   'FORK_MAINTENANCE.md'
 )
 
@@ -101,17 +111,11 @@ status_check() {
     issues=$((issues + 1))
   fi
 
-  # Check file reference
-  if [[ -f "$REPO_ROOT/CLAUDE.md" ]] && grep -q 'obsidian-second-brain.*CLAUDE' "$REPO_ROOT/CLAUDE.md" 2>/dev/null; then
-    # This file is CLAUDE.md itself (the repo's own CLAUDE.md) - its self-ref is fine
-    # Check actual _CLAUDE.md references in commands
-    if grep -r '_CLAUDE\.md' "$REPO_ROOT/commands" --include='*.md' -q 2>/dev/null; then
-      warn "Commands still reference _CLAUDE.md - conversion not applied"
-      issues=$((issues + 1))
-    fi
+  if grep -r '_CLAUDE\.md' "$REPO_ROOT/commands" --include='*.md' -q 2>/dev/null; then
+    warn "Commands still reference _CLAUDE.md - conversion not applied"
+    issues=$((issues + 1))
   fi
 
-  # Check template names
   if [[ -f "$REPO_ROOT/references/claude-md-template.md" ]]; then
     warn "Template file still at claude-md-template.md - rename not applied"
     issues=$((issues + 1))
@@ -141,48 +145,53 @@ apply_content_renames() {
     -type f -print \
     | while read -r f; do
 
-    # Skip binary/non-text files
     local ext="${f##*.}"
     case "$ext" in
       md|py|sh|yml|yaml|json|toml|html|cff|txt|rb|go|rs) ;;
       *) continue ;;
     esac
 
-    # Skip files that should keep Claude-specific naming intentionally
     local rel="${f#$REPO_ROOT/}"
     case "$rel" in
-      CLAUDE.md)            continue ;;  # repo's own operating instructions
-      FORK_MAINTENANCE.md)  continue ;;  # talks about the conversion literally
-      *.github/*)           ;;           # don't skip
-      _includes/*)          ;;           # don't skip
-      llms.txt)             ;;           # don't skip
+      CLAUDE.md)            continue ;;
+      FORK_MAINTENANCE.md)  continue ;;
+      *.github/*)           ;;
+      _includes/*)          ;;
+      llms.txt)             ;;
       *) ;;
     esac
-
 
     local dirty=0
     cp "$f" "$tmp"
 
-    # Apply content patterns
     for entry in "${PATTERNS[@]}"; do
       local old="${entry%%:*}"
       local new="${entry##*:}"
       if grep -q "$old" "$tmp" 2>/dev/null; then
         if [[ "$MODE" == "--apply" ]] || [[ "$MODE" == "--setup" ]]; then
-          # sed -i portably
-          sed -i '' "s/$old/$new/g" "$tmp" 2>/dev/null || true
+          sed -i '' "s|$old|$new|g" "$tmp" 2>/dev/null || true
         fi
         dirty=1
       fi
     done
 
-    # Apply template reference renames
+    for entry in "${REPO_PATH_PATTERNS[@]}"; do
+      local old="${entry%%:*}"
+      local new="${entry##*:}"
+      if grep -qF "$old" "$tmp" 2>/dev/null; then
+        if [[ "$MODE" == "--apply" ]] || [[ "$MODE" == "--setup" ]]; then
+          sed -i '' "s|$old|$new|g" "$tmp" 2>/dev/null || true
+        fi
+        dirty=1
+      fi
+    done
+
     for entry in "${TEMPLATE_REFS[@]}"; do
       local old="${entry%%:*}"
       local new="${entry##*:}"
       if grep -q "$old" "$tmp" 2>/dev/null; then
         if [[ "$MODE" == "--apply" ]] || [[ "$MODE" == "--setup" ]]; then
-          sed -i '' "s/$old/$new/g" "$tmp" 2>/dev/null || true
+          sed -i '' "s|$old|$new|g" "$tmp" 2>/dev/null || true
         fi
         dirty=1
       fi
@@ -209,7 +218,7 @@ apply_template_renames() {
         mkdir -p "$(dirname "$dst")"
         mv "$src" "$dst"
       fi
-      echo "  ${entry%%:*} → ${entry##*:}"
+      echo "  ${entry%%:*} -> ${entry##*:}"
       CHANGED=$((CHANGED + 1))
     fi
   done
@@ -222,32 +231,27 @@ apply_example_rename() {
     if [[ "$MODE" == "--apply" ]] || [[ "$MODE" == "--setup" ]]; then
       mv "$old" "$new"
     fi
-    echo "  examples/sample-vault/_CLAUDE.md → _AGENTS.md"
+    echo "  examples/sample-vault/_CLAUDE.md -> _AGENTS.md"
     CHANGED=$((CHANGED + 1))
   fi
 }
 
-# ── Setup: git assume-unchanged ───────────────────────────────────────────────
 setup_git_assume_unchanged() {
   info "Setting up git assume-unchanged for converted files..."
   local count=0 f flags ext
 
-  # Read tracked files into array (avoids subshell pipe issue)
   local -a tracked=()
   while IFS= read -r f; do tracked+=("$f"); done < <(git -C "$REPO_ROOT" ls-files)
 
   for f in "${tracked[@]}"; do
-    # Skip our own files
     is_our_file "$f" && continue
 
-    # Check extension
     ext="${f##*.}"
     case "$ext" in
       md|py|sh|yml|yaml|json|toml|html|cff|txt) ;;
       *) continue ;;
     esac
 
-    # Check if already assume-unchanged (flags char is 'h')
     flags=$(git -C "$REPO_ROOT" ls-files -v "$f" 2>/dev/null)
     [[ "${flags:0:1}" == "h" ]] && continue
 
@@ -256,8 +260,6 @@ setup_git_assume_unchanged() {
   done
 
   info "Marked $count files as assume-unchanged."
-  info "To unmark: git -C $REPO_ROOT update-index --no-assume-unchanged <file>"
-  info "To see all: git -C $REPO_ROOT ls-files -v | grep '^h'"
 }
 
 # ── Main ───────────────────────────────────────────────────────────────────────
@@ -302,15 +304,4 @@ EOF
     ;;
 esac
 
-if [[ "$MODE" == "--apply" ]] || [[ "$MODE" == "--setup" ]]; then
-  info "Done. $CHANGED files changed."
-  if [[ $WARNINGS -gt 0 ]]; then
-    warn "$WARNINGS warnings."
-  fi
-else
-  if [[ $CHANGED -eq 0 ]]; then
-    info "No changes needed - conversion is current."
-  else
-    info "Would change $CHANGED file(s). Run with --apply to apply."
-  fi
-fi
+echo "Done. $CHANGED file(s) affected."

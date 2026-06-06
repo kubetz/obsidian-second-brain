@@ -8,7 +8,7 @@ Use the obsidian-second-brain skill. Execute `/notebooklm [topic]`:
 
 1. Resolve the topic from the user's argument. If no topic, ask: "What topic for source-grounded research?"
 
-2. Run the Python command from the repo root (`~/Projects/personal/obsidian-second-brain/`):
+2. Run the Python research command:
    ```bash
    uv run -m scripts.research.notebooklm --topic "<topic>"
    ```

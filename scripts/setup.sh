@@ -289,6 +289,17 @@ else
   green "   Linked → $OMP_LINK"
 fi
 
+# ── symlink uv deps into vault ────────────────────────────────────────────────
+step "3. Symlinking pyproject.toml and uv.lock into vault..."
+
+if [[ -L "$VAULT/pyproject.toml" ]] && [[ "$(readlink "$VAULT/pyproject.toml")" == "$SKILL_DIR/pyproject.toml" ]]; then
+  green "   pyproject.toml already linked"
+else
+  ln -sf "$SKILL_DIR/pyproject.toml" "$VAULT/pyproject.toml"
+  ln -sf "$SKILL_DIR/uv.lock" "$VAULT/uv.lock"
+  green "   Symlinked pyproject.toml and uv.lock into vault"
+fi
+
 # ── done (omp) ────────────────────────────────────────────────────────────────
 echo ""
 echo "==========================="
