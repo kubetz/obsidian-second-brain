@@ -242,7 +242,22 @@ setup_git_assume_unchanged() {
 
   local -a tracked=()
   while IFS= read -r f; do tracked+=("$f"); done < <(git -C "$REPO_ROOT" ls-files)
+  # First, unmark any of our own files that are accidentally assume-unchanged
+  local unmark_count=0
+  for f in "${tracked[@]}"; do
+    is_our_file "$f" || continue
+    flags=$(git -C "$REPO_ROOT" ls-files -v "$f" 2>/dev/null)
+    if [[ "${flags:0:1}" == "h" ]]; then
+      git -C "$REPO_ROOT" update-index --no-assume-unchanged "$f"
+      unmark_count=$((unmark_count + 1))
+    fi
+  done
+  if [[ $unmark_count -gt 0 ]]; then
+    warn "Unmarked $unmark_count fork-owned files that were accidentally assume-unchanged."
+  fi
 
+  # Then mark all converted files as assume-unchanged
+  local count=0 f flags ext
   for f in "${tracked[@]}"; do
     is_our_file "$f" && continue
 
