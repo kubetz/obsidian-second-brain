@@ -7,7 +7,7 @@
 #   1. _CLAUDE.md         → _AGENTS.md             (all file references)
 #   2. ## For future Claude → ## Synopsis           (preamble header)
 #   3. future-Claude      → future agent           (every form: Future-Claude,
-#      Future Claude, future Claude, future-Claude — all normalize to
+#      Future Claude, future Claude, future-Claude - all normalize to
 #      "future agent" / "Future agent")
 #   4. references/claude-md-template.md      → references/agents-md-template.md
 #      references/claude-md-assistant-template.md → ...-assistant-template.md
@@ -34,9 +34,9 @@ WARNINGS=0
 EXTENSIONS='\.(md|py|sh|yml|yaml|json|toml|html|cff|txt)$'
 
 declare -a PATTERNS=(
-  # File references — _CLAUDE.md → _AGENTS.md
+  # File references - _CLAUDE.md → _AGENTS.md
   '_CLAUDE\.md:_AGENTS.md'
-  # Preamble header — ## For future Claude → ## Synopsis
+  # Preamble header - ## For future Claude → ## Synopsis
   '## For future Claude:## Synopsis'
   # future-Claude (hyphenated, lowercase) → future agent
   'future-Claude:future agent'
@@ -90,23 +90,23 @@ status_check() {
   done
 
   if [[ -f "$sample" ]] && grep -q '## For future Claude' "$sample" 2>/dev/null; then
-    warn "Preamble still uses '## For future Claude' — conversion not applied"
+    warn "Preamble still uses '## For future Claude' - conversion not applied"
     issues=$((issues + 1))
   fi
 
   # Check file reference
   if [[ -f "$REPO_ROOT/CLAUDE.md" ]] && grep -q 'obsidian-second-brain.*CLAUDE' "$REPO_ROOT/CLAUDE.md" 2>/dev/null; then
-    # This file is CLAUDE.md itself (the repo's own CLAUDE.md) — its self-ref is fine
+    # This file is CLAUDE.md itself (the repo's own CLAUDE.md) - its self-ref is fine
     # Check actual _CLAUDE.md references in commands
     if grep -r '_CLAUDE\.md' "$REPO_ROOT/commands" --include='*.md' -q 2>/dev/null; then
-      warn "Commands still reference _CLAUDE.md — conversion not applied"
+      warn "Commands still reference _CLAUDE.md - conversion not applied"
       issues=$((issues + 1))
     fi
   fi
 
   # Check template names
   if [[ -f "$REPO_ROOT/references/claude-md-template.md" ]]; then
-    warn "Template file still at claude-md-template.md — rename not applied"
+    warn "Template file still at claude-md-template.md - rename not applied"
     issues=$((issues + 1))
   fi
 
@@ -285,7 +285,7 @@ Usage:
 EOF
       exit 0
     fi
-    info "Dry-run — files that would change:"
+    info "Dry-run - files that would change:"
     apply_content_renames
     apply_template_renames
     apply_example_rename
@@ -299,7 +299,7 @@ if [[ "$MODE" == "--apply" ]] || [[ "$MODE" == "--setup" ]]; then
   fi
 else
   if [[ $CHANGED -eq 0 ]]; then
-    info "No changes needed — conversion is current."
+    info "No changes needed - conversion is current."
   else
     info "Would change $CHANGED file(s). Run with --apply to apply."
   fi

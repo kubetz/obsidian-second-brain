@@ -4,7 +4,7 @@ This fork of [obsidian-second-brain](https://github.com/eugeniughelbur/obsidian-
 
 ## Philosophy
 
-We keep our permanent diff against upstream small — only additive files and targeted infill in existing ones. The 87+ files that undergo text replacements (`_CLAUDE.md` → `_AGENTS.md`, `## For future Claude` → `## Synopsis`, etc.) are treated as **ephemeral transforms** of upstream content, regenerated after every pull. They are never committed in converted form.
+We keep our permanent diff against upstream small - only additive files and targeted infill in existing ones. The 87+ files that undergo text replacements (`_CLAUDE.md` → `_AGENTS.md`, `## For future Claude` → `## Synopsis`, etc.) are treated as **ephemeral transforms** of upstream content, regenerated after every pull. They are never committed in converted form.
 
 ## Files we own (committed)
 
@@ -60,9 +60,9 @@ Tracked files matching extensions `.md`, `.py`, `.sh`, `.yml`, `.yaml`, `.json`,
 
 ## When things conflict
 
-Our modifications are **additive** — they add branches to case statements, new files to arrays, and new entries to switch blocks. If upstream changes the same area:
+Our modifications are **additive** - they add branches to case statements, new files to arrays, and new entries to switch blocks. If upstream changes the same area:
 
-1. The conflict is usually in one file, not 87 — easy to resolve.
+1. The conflict is usually in one file, not 87 - easy to resolve.
 2. After resolving, run `bash scripts/convert.sh --apply` to re-apply the conversion.
 3. Run `bash scripts/convert.sh --status` to verify.
 
@@ -70,4 +70,4 @@ The only common conflict source: upstream adding a new platform. That touches `s
 
 ## OMP hooks
 
-OMP supports hooks but in a fundamentally different shape — TypeScript modules using `HookAPI` from `@oh-my-pi/pi-coding-agent/extensibility/hooks`. The existing Claude Code hooks (Python/bash) are **not converted** in this fork. See `https://omp.sh/docs/hooks` for the OMP hook API surface. Conversion is feasible but non-trivial and deferred.
+OMP supports hooks but in a fundamentally different shape - TypeScript modules using `HookAPI` from `@oh-my-pi/pi-coding-agent/extensibility/hooks`. The existing Claude Code hooks (Python/bash) are **not converted** in this fork. See `https://omp.sh/docs/hooks` for the OMP hook API surface. Conversion is feasible but non-trivial and deferred.

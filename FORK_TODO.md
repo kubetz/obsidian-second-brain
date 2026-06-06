@@ -12,7 +12,7 @@ Reference: [omp.sh/docs/hooks](https://omp.sh/docs/hooks)
 
 | OMP Event | Available? | Purpose |
 |---|---|---|
-| `session_start` | yes | Observational — fires once per session |
+| `session_start` | yes | Observational - fires once per session |
 | `session_shutdown` | yes | Observational |
 | `turn_start` / `turn_end` | yes | Observational |
 | `tool_call` | yes (gate) | Can `{ block: true, reason }` to refuse |
@@ -26,7 +26,7 @@ Reference: [omp.sh/docs/hooks](https://omp.sh/docs/hooks)
 
 **Missing:** OMP has no `session_after_compact` / `compact_done` event. You can veto compaction but cannot react to it.
 
-### Hook 1: `load_vault_context.py` — SessionStart
+### Hook 1: `load_vault_context.py` - SessionStart
 
 **File:** `hooks/load_vault_context.py`
 **Function:** Injects `_AGENTS.md` into context once per session when cwd is inside vault.
@@ -51,7 +51,7 @@ export default function (pi: HookAPI) {
 
 **Check:** Does OMP's `HookAPI` expose a context-injection method? Look for `pi.addContext()`, `pi.injectSystem()`, or similar on the `ExtensionAPI` superset (`@oh-my-pi/pi-coding-agent/extensibility/extensions`).
 
-### Hook 2: `validate-ai-first.sh` — PostToolUse
+### Hook 2: `validate-ai-first.sh` - PostToolUse
 
 **File:** `hooks/validate-ai-first.sh`
 **Function:** After every Write/Edit, validates the file has correct frontmatter, `## Synopsis` preamble, `ai-first: true`, and no banned non-ASCII chars. Non-blocking warning.
@@ -71,16 +71,16 @@ export default function (pi: HookAPI) {
 }
 ```
 
-**⚠️ UX difference:** Claude Code's `PostToolUse` sends warnings to stderr (visible in the user's UI). OMP's `tool_result` rewrites what the model sees — the warning goes to the model, not the user. The model could paraphrase it, ignore it, or surface it. The semantics differ.
+**⚠️ UX difference:** Claude Code's `PostToolUse` sends warnings to stderr (visible in the user's UI). OMP's `tool_result` rewrites what the model sees - the warning goes to the model, not the user. The model could paraphrase it, ignore it, or surface it. The semantics differ.
 
 **Validation rules to port** (from `hooks/validate-ai-first.sh`):
 1. Frontmatter delimiters (`--- ... ---`) are well-formed
 2. No tabs inside frontmatter (YAML requires spaces)
 3. Required fields: `date`, `type`, `tags`, `ai-first: true`
 4. `## Synopsis` preamble exists in body
-5. No banned non-ASCII substitution characters (em/en-dashes, curly quotes, smart apostrophes, Unicode math) — delegate to `scripts/sweep_non_ascii.py` for the actual check
+5. No banned non-ASCII substitution characters (em/en-dashes, curly quotes, smart apostrophes, Unicode math) - delegate to `scripts/sweep_non_ascii.py` for the actual check
 
-### Hook 3: `obsidian-bg-agent.sh` — PostCompact
+### Hook 3: `obsidian-bg-agent.sh` - PostCompact
 
 **File:** `hooks/obsidian-bg-agent.sh`
 **Function:** After Claude compacts a session, spawns a headless `claude --dangerously-skip-permissions -p` to propagate the compact summary to the vault (decisions, tasks, people, dev logs).
@@ -129,9 +129,9 @@ CONSTRAINTS:
 
 | Hook | Claude mechanism | OMP mechanism | Feasibility | Priority |
 |---|---|---|---|---|
-| load_vault_context | `SessionStart` bash hook | `session_start` TS hook | ✅ Feasible | Medium — saves tokens per session |
-| validate-ai-first | `PostToolUse` bash hook | `tool_result` TS rewrite | ⚠️ Partially — UX differs | Low — commands carry rules inline |
-| obsidian-bg-agent | `PostCompact` bash hook | No event available | ❌ Blocked | Low — user runs `/obsidian-save` manually |
+| load_vault_context | `SessionStart` bash hook | `session_start` TS hook | ✅ Feasible | Medium - saves tokens per session |
+| validate-ai-first | `PostToolUse` bash hook | `tool_result` TS rewrite | ⚠️ Partially - UX differs | Low - commands carry rules inline |
+| obsidian-bg-agent | `PostCompact` bash hook | No event available | ❌ Blocked | Low - user runs `/obsidian-save` manually |
 
 ### Key files to reference during conversion
 
@@ -164,9 +164,9 @@ Dropped from scope. If revisited, follow the OMP adapter pattern (`adapters/omp/
 
 ## Future: OMP Meta-skill for Conversion Workflow
 
-Not created — the three artifacts cover it:
-- `scripts/convert.sh` — executable
-- `FORK_MAINTENANCE.md` — docs
-- `convert.sh --setup` — git assume-unchanged wiring
+Not created - the three artifacts cover it:
+- `scripts/convert.sh` - executable
+- `FORK_MAINTENANCE.md` - docs
+- `convert.sh --setup` - git assume-unchanged wiring
 
 The OMP adapter already copies `scripts/` and `references/` into the dist tree, so `convert.sh` ships with every OMP build.
