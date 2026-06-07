@@ -65,7 +65,7 @@ bash scripts/convert.sh --setup
 bash scripts/convert.sh --status
 ```
 
-## Git assume-unchanged — how it works
+## Git assume-unchanged - how it works
 
 To keep `git status` clean, the conversion marks transformed files with
 `git update-index --assume-unchanged`. Git will not check these files for local
@@ -82,7 +82,7 @@ old flag doesn't carry over:
 
 - **After `--setup`**: the main loop catches files still at `H`. Then a
   verification pass (`git status --porcelain`) force-marks any dirty converted
-  file that slipped through — this is what catches the inode-flipped files.
+  file that slipped through - this is what catches the inode-flipped files.
 - **After a rebase or branch switch**: git may drop the flag even when the file
   content matches the conversion (because the committed blob SHA changed).
   `--setup` re-applies the flag in both passes.
@@ -95,12 +95,12 @@ After a rebase or merge, the AI should verify and fix assume-unchanged state
 before yielding.  The logic:
 
 1. **Run `git status`.** If clean, done. If dirty, proceed.
-2. **Run `git ls-files -v | grep '^h'`** — see what's already marked.
-3. **Run `git ls-files -v | grep '^H' | grep -E '\.(md|py|sh|yml|yaml|json|toml|html|cff|txt)$'`** — see converted files that lost the flag.
+2. **Run `git ls-files -v | grep '^h'`** - see what's already marked.
+3. **Run `git ls-files -v | grep '^H' | grep -E '\.(md|py|sh|yml|yaml|json|toml|html|cff|txt)$'`** - see converted files that lost the flag.
 4. **Cross-check against OUR_FILES** (`scripts/convert.sh` lines 80-85). If the
-   `H` file is one of ours (e.g. `FORK_MAINTENANCE.md`), it should stay `H` —
+   `H` file is one of ours (e.g. `FORK_MAINTENANCE.md`), it should stay `H` -
    that's expected. If the `H` file is a converted file, the flag needs fixing.
-5. **Run `bash scripts/convert.sh --setup`** — this does both passes (main +
+5. **Run `bash scripts/convert.sh --setup`** - this does both passes (main +
    verification) and handles the OUR_FILES unmarking.
 6. **Re-check `git status`.** If any converted files still show as modified,
    they have a new inode that the verification pass missed.  Run

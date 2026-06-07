@@ -82,6 +82,7 @@ declare -a OUR_FILES=(
   'scripts/convert.sh'
   'scripts/setup.sh'
   'FORK_MAINTENANCE.md'
+  'commands/obsidian-distill.md'
 )
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
