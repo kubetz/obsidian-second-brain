@@ -45,7 +45,7 @@ should follow when the user's request matches its trigger phrase.
 2. When the user's request matches a trigger in the tables below, read the
    matching file under `.omp/commands/<name>.md` and follow its
    instructions step by step.
-3. Treat the AI-first vault rule (`references/ai-first-rules.md`) as
+3. Treat the AI-first vault rule (`.omp/references/ai-first-rules.md`) as
    non-negotiable for every note you write: `## Synopsis` preamble,
    rich frontmatter (`type`, `date`, `tags`, `ai-first: true`), `[[wikilinks]]`
    for every person/project/concept, recency markers per external claim,
