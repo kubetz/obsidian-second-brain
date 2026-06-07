@@ -19,6 +19,8 @@ adapter_build() {
   _omp_translate_commands "$src/commands" "$dst/.${OMP_DIR}/commands"
   _omp_copy_references "$src/references" "$dst/.${OMP_DIR}/references"
   _omp_copy_scripts "$src/scripts" "$dst/.${OMP_DIR}/scripts"
+  cp "$src/pyproject.toml" "$dst/.${OMP_DIR}/pyproject.toml"
+  cp "$src/uv.lock" "$dst/.${OMP_DIR}/uv.lock"
   _omp_emit_install_hint "$dst"
 }
 
@@ -68,9 +70,14 @@ also accepted if the user types it.
 ## Scripts
 
 Python helpers live under `.omp/scripts/`. They run via `uv run -m
-scripts.research.<name>` from the vault root (or wherever the skill is
-installed). The commands that need them reference the exact invocation
-inside the command body.
+scripts.research.<name>`. Execute them from inside `.omp/` (the skill
+directory containing `pyproject.toml` and `uv.lock`):
+
+```
+cd .omp && uv run -m scripts.research.x_pulse "<topic>"
+```
+
+To discover available research subcommands, browse `.omp/scripts/research/`.
 
 ---
 
