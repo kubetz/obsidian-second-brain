@@ -289,15 +289,23 @@ else
   green "   Linked → $OMP_LINK"
 fi
 
-# ── symlink uv deps into vault ────────────────────────────────────────────────
-step "3. Symlinking pyproject.toml and uv.lock into vault..."
+# ── symlink uv deps + scripts module into vault ──────────────────────────────
+step "3. Symlinking research toolchain into vault..."
 
-if [[ -L "$VAULT/pyproject.toml" ]] && [[ "$(readlink "$VAULT/pyproject.toml")" == "$SKILL_DIR/pyproject.toml" ]]; then
-  green "   pyproject.toml already linked"
+for pair in "pyproject.toml:$SKILL_DIR/pyproject.toml" "uv.lock:$SKILL_DIR/uv.lock"; do
+  local="$VAULT/${pair%%:*}"
+  target="${pair##*:}"
+  if [[ -L "$local" ]] && [[ "$(readlink "$local")" == "$target" ]]; then
+    green "   $(basename "$local") already linked"
+  else
+    ln -sf "$target" "$local"
+  fi
+done
+if [[ -L "$VAULT/scripts" ]] && [[ "$(readlink "$VAULT/scripts")" == ".omp/scripts" ]]; then
+  green "   scripts module already linked"
 else
-  ln -sf "$SKILL_DIR/pyproject.toml" "$VAULT/pyproject.toml"
-  ln -sf "$SKILL_DIR/uv.lock" "$VAULT/uv.lock"
-  green "   Symlinked pyproject.toml and uv.lock into vault"
+  ln -sfn .omp/scripts "$VAULT/scripts"
+  green "   Symlinked scripts → .omp/scripts"
 fi
 
 # ── done (omp) ────────────────────────────────────────────────────────────────
