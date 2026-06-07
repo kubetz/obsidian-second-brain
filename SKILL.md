@@ -10,7 +10,7 @@ description: >
   kanban boards, logging dev work, managing people notes, capturing decisions,
   tracking deals, or maintaining any vault structure. Also triggers when the user
   wants to bootstrap a new vault from scratch, run a vault health check, or drop
-  a _CLAUDE.md into their vault so all Claude surfaces share the same operating rules.
+  a _AGENTS.md into their vault so all Claude surfaces share the same operating rules.
   Includes a research toolkit (7 commands: /x-read, /x-pulse, /research, /research-deep,
   /notebooklm, /youtube, /podcast) for AI-powered research via Grok, Perplexity, NotebookLM,
   YouTube, and podcast feeds - findings save
@@ -33,7 +33,7 @@ description: >
 Try these methods in order. Use the first one available:
 
 **Method 0 - SessionStart hook (if configured):**
-If `hooks/load_vault_context.py` is wired as a SessionStart hook in `~/.claude/settings.json`, `_CLAUDE.md` is injected into context automatically at session start. Skip step 1 below.
+If `hooks/load_vault_context.py` is wired as a SessionStart hook in `~/.claude/settings.json`, `_AGENTS.md` is injected into context automatically at session start. Skip step 1 below.
 To wire it: `bash scripts/setup.sh "/path/to/vault"` or run `/obsidian-setup`.
 
 **Method A - MCP server (`mcp-obsidian`):**
@@ -46,18 +46,18 @@ If MCP is not installed, silently use filesystem access. Tell the user ONCE (fir
 
 > "For faster vault access on large vaults, consider installing mcp-obsidian: `claude mcp add obsidian-vault -s user -- npx -y mcp-obsidian \"/path/to/your/vault\"`. Everything works without it."
 
-### 1. First time in a vault → read `_CLAUDE.md`
+### 1. First time in a vault → read `_AGENTS.md`
 
-Before doing anything in a vault, check if `_CLAUDE.md` exists at the vault root:
+Before doing anything in a vault, check if `_AGENTS.md` exists at the vault root:
 
 ```
-get_file_contents("_CLAUDE.md")
+get_file_contents("_AGENTS.md")
 ```
 
-If it exists: follow its rules exactly - they override the defaults in this skill. Where `_CLAUDE.md` is silent, fall back to the defaults below.
+If it exists: follow its rules exactly - they override the defaults in this skill. Where `_AGENTS.md` is silent, fall back to the defaults below.
 If it doesn't exist: use the defaults in this skill, then offer to create one.
 
-If the SessionStart hook is active, `_CLAUDE.md` is already in context - skip this step.
+If the SessionStart hook is active, `_AGENTS.md` is already in context - skip this step.
 
 ### 2. First time with a new user → run discovery
 
@@ -97,7 +97,7 @@ Then configure `mcp-obsidian` to point at the new vault path and restart Claude.
 
 Default (no preset) gives a general-purpose vault. All presets use wiki-style by default.
 
-**Assistant mode** creates a `_CLAUDE.md` configured for operating a vault on behalf of someone else. See `references/claude-md-assistant-template.md`.
+**Assistant mode** creates a `_AGENTS.md` configured for operating a vault on behalf of someone else. See `references/agents-md-assistant-template.md`.
 
 See `references/vault-schema.md` for full structural details.
 
@@ -109,14 +109,14 @@ See `references/vault-schema.md` for full structural details.
 The vault is designed for **future-Claude** to read and reason over, not for human review. Every note Claude writes - across all 45 commands - must follow `references/ai-first-rules.md`:
 
 1. **Self-contained context** - each note explains itself; don't rely on backlinks alone
-2. **"For future Claude" preamble** - 2-3 sentence summary so Claude can decide relevance in 10 seconds
+2. **"For future agent" preamble** - 2-3 sentence summary so Claude can decide relevance in 10 seconds
 3. **Rich, consistent frontmatter** - `type`, `date`, `tags`, `ai-first: true`, plus type-specific fields (see `ai-first-rules.md` for schemas per note type)
-4. **Recency markers per claim** - "Mem0 raised $24M (as of 2026-04, mem0.ai)" so future-Claude knows what to verify
+4. **Recency markers per claim** - "Mem0 raised $24M (as of 2026-04, mem0.ai)" so future agent knows what to verify
 5. **Sources preserved verbatim** - every external claim has its source URL inline
 6. **Cross-links mandatory** - every person/project/idea/decision uses `[[wikilinks]]`
 7. **Confidence levels** - `stated | high | medium | speculation` where applicable
 
-This rule lives in `_CLAUDE.md` Section 0 of every vault using this skill, and in `references/ai-first-rules.md` (the canonical specification with frontmatter schemas + preamble templates per note type).
+This rule lives in `_AGENTS.md` Section 0 of every vault using this skill, and in `references/ai-first-rules.md` (the canonical specification with frontmatter schemas + preamble templates per note type).
 
 ### Never create in isolation
 Every write operation must ask: *where else does this belong?*
@@ -277,13 +277,13 @@ See `references/write-rules.md` for the complete guide. Summary:
 
 ---
 
-## The `_CLAUDE.md` File
+## The `_AGENTS.md` File
 
 This is the most important concept in this skill.
 
-`_CLAUDE.md` lives at the vault root and persists Claude's operating rules across every session and every surface (Claude Desktop, Claude Code, VS Code, terminal). Without it, Claude has to re-learn your vault conventions every conversation.
+`_AGENTS.md` lives at the vault root and persists Claude's operating rules across every session and every surface (Claude Desktop, Claude Code, VS Code, terminal). Without it, Claude has to re-learn your vault conventions every conversation.
 
-**Precedence rule:** `_CLAUDE.md` wins on all vault-specific rules (folder names, naming conventions, frontmatter fields, auto-save behavior, private folders). The defaults in this skill file apply only where `_CLAUDE.md` is silent. Never let skill defaults override an explicit `_CLAUDE.md` rule.
+**Precedence rule:** `_AGENTS.md` wins on all vault-specific rules (folder names, naming conventions, frontmatter fields, auto-save behavior, private folders). The defaults in this skill file apply only where `_AGENTS.md` is silent. Never let skill defaults override an explicit `_AGENTS.md` rule.
 
 **What it contains:**
 - Your vault's folder map and what each folder is for
@@ -293,7 +293,7 @@ This is the most important concept in this skill.
 - People and projects that need special handling
 - Links to key files (boards, dashboard, templates)
 
-To generate a `_CLAUDE.md` for an existing vault, run vault discovery then use the template in `references/claude-md-template.md`.
+To generate a `_AGENTS.md` for an existing vault, run vault discovery then use the template in `references/agents-md-template.md`.
 
 To install it: write the file to the vault root. Every Claude session that starts in that vault should read it first.
 
@@ -441,7 +441,7 @@ Steps:
 Steps:
 1. Parse the task from the argument or from recent conversation context if no argument given
 2. Infer: priority (🔴/🟡/🟢), due date, linked project, linked person
-3. Search for the right kanban board - use `_CLAUDE.md` board list or search `Boards/`
+3. Search for the right kanban board - use `_AGENTS.md` board list or search `Boards/`
 4. Add the task card to the correct column (`📋 This Week` or `📥 Backlog` depending on due date)
 5. Create a task note in `Tasks/` if the task is substantial (more than a one-liner)
 6. Link the task from the relevant project note and today's daily note
@@ -585,7 +585,7 @@ Steps:
 
 **Live status overview across all tracked projects.**
 
-Reads `_CLAUDE.md` for the projects folder, then scans it for notes with `type: project` or a `repo:` field. For each project, spawns a parallel subagent that runs three checks: reads the vault note (status, last activity, next action, blockers), runs `git log` and `git status` if a `repo:` path is set, and looks for `NOTES.md` / `TODO.md` in the repo root. Merges the three into one status block (active / stalled / idle / blocked / archived inferred from activity recency), prints the full overview to the conversation ordered active-first, then injects a `## Last overview` section into each project note.
+Reads `_AGENTS.md` for the projects folder, then scans it for notes with `type: project` or a `repo:` field. For each project, spawns a parallel subagent that runs three checks: reads the vault note (status, last activity, next action, blockers), runs `git log` and `git status` if a `repo:` path is set, and looks for `NOTES.md` / `TODO.md` in the repo root. Merges the three into one status block (active / stalled / idle / blocked / archived inferred from activity recency), prints the full overview to the conversation ordered active-first, then injects a `## Last overview` section into each project note.
 
 If a project name argument is given, shows deep context for that one project only.
 
@@ -672,7 +672,7 @@ Steps:
 
 ### `/obsidian-init`
 
-**Bootstraps `_CLAUDE.md` for the vault - the operating manual.**
+**Bootstraps `_AGENTS.md` for the vault - the operating manual.**
 
 Steps:
 1. Call `list_files_in_vault()` to map the full structure
@@ -682,11 +682,11 @@ Steps:
    - **Boards agent**: read all files in `Boards/`
    - **Samples agent**: read one existing note per major folder to capture naming conventions and frontmatter patterns
 3. Merge all agent results into a complete picture of the vault
-4. Generate a complete `_CLAUDE.md` using the template in `references/claude-md-template.md`, filled with real values from the vault
-5. Write it to `_CLAUDE.md` at the vault root via `append_content("_CLAUDE.md", content)`
+4. Generate a complete `_AGENTS.md` using the template in `references/agents-md-template.md`, filled with real values from the vault
+5. Write it to `_AGENTS.md` at the vault root via `append_content("_AGENTS.md", content)`
 6. Confirm what was written and tell the user to restart their Claude session so the new file takes effect
 
-If `_CLAUDE.md` already exists: show a diff of what would change and ask before overwriting.
+If `_AGENTS.md` already exists: show a diff of what would change and ask before overwriting.
 
 ---
 
@@ -1058,7 +1058,7 @@ Set these up once using the `/schedule` skill in Claude Code.
 
 Prompt to schedule:
 ```
-Read _CLAUDE.md. Create today's daily note in Daily/ using the Daily Note template.
+Read _AGENTS.md. Create today's daily note in Daily/ using the Daily Note template.
 Pull in any tasks from kanban boards that are due today or overdue.
 List any projects with status active that have no recent activity in the last 7 days.
 Do not ask questions — infer everything from the vault. Save and stop.
@@ -1079,7 +1079,7 @@ This agent does more than close the day. It actively consolidates and improves t
 
 Prompt to schedule:
 ```
-Read _CLAUDE.md. This is a sleeptime consolidation pass — the vault should be smarter when the user wakes up.
+Read _AGENTS.md. This is a sleeptime consolidation pass — the vault should be smarter when the user wakes up.
 
 Phase 1 — Close the day:
 - Read today's daily note. Append a ## End of Day section with a 3-5 bullet summary.
@@ -1118,7 +1118,7 @@ Setup:
 
 Prompt to schedule:
 ```
-Read _CLAUDE.md. Run /obsidian-recap week to gather this week's activity.
+Read _AGENTS.md. Run /obsidian-recap week to gather this week's activity.
 Generate a weekly review note using the Review template (or standard structure if none exists).
 Save to Reviews/YYYY-MM-DD — Weekly Review.md.
 Link it from this week's last daily note.
@@ -1138,7 +1138,7 @@ Setup:
 
 Prompt to schedule:
 ```
-Read _CLAUDE.md. Run: python scripts/vault_health.py --path ~/path/to/vault --json
+Read _AGENTS.md. Run: python scripts/vault_health.py --path ~/path/to/vault --json
 Parse the output. Write a health report to Knowledge/Vault Health YYYY-MM-DD.md
 summarizing findings by severity (critical, warning, info).
 Do not fix anything autonomously — only report.
@@ -1197,7 +1197,7 @@ may not be found otherwise.
 
 A background agent that fires automatically whenever Claude compacts the conversation context. It reads the session summary and propagates everything worth preserving to the vault - no user action required.
 
-**What it does:** After each compaction, a headless `claude -p` subprocess wakes up, reads `_CLAUDE.md`, scans the summary for vault-worthy items (people, projects, decisions, tasks, dev work, ideas), and writes updates everywhere they belong - people notes, project notes, dev logs, kanban boards, and today's daily note.
+**What it does:** After each compaction, a headless `claude -p` subprocess wakes up, reads `_AGENTS.md`, scans the summary for vault-worthy items (people, projects, decisions, tasks, dev work, ideas), and writes updates everywhere they belong - people notes, project notes, dev logs, kanban boards, and today's daily note.
 
 **How it works:**
 1. `PostCompact` hook fires in Claude Code after context compaction
@@ -1250,13 +1250,13 @@ A background agent that fires automatically whenever Claude compacts the convers
 
 ## Write-Time AI-First Validator (PostToolUse Hook)
 
-A non-blocking validator that fires after every `Write` or `Edit` on a markdown file inside the configured vault. It warns when the file fails the AI-first rule (missing required frontmatter, missing `## For future Claude` preamble, broken YAML) and surfaces the warning back to Claude on stderr so the agent can repair the note in the same turn.
+A non-blocking validator that fires after every `Write` or `Edit` on a markdown file inside the configured vault. It warns when the file fails the AI-first rule (missing required frontmatter, missing `## Synopsis` preamble, broken YAML) and surfaces the warning back to Claude on stderr so the agent can repair the note in the same turn.
 
 **What it checks:**
 1. The file has frontmatter delimiters (`--- ... ---`)
 2. No tabs in frontmatter (YAML requires spaces)
 3. Required AI-first fields present: `date:`, `type:`, `tags:`, `ai-first: true`
-4. The body contains a `## For future Claude` preamble (rule #2 of [`references/ai-first-rules.md`](references/ai-first-rules.md))
+4. The body contains a `## Synopsis` preamble (rule #2 of [`references/ai-first-rules.md`](references/ai-first-rules.md))
 
 **What it skips:**
 - Files outside `OBSIDIAN_VAULT_PATH`
@@ -1328,7 +1328,7 @@ The default install path (`scripts/setup.sh`) writes `OBSIDIAN_VAULT_PATH` into 
 
 - `references/vault-schema.md` - Complete folder structure + frontmatter specs for all note types
 - `references/write-rules.md` - Detailed writing, linking, and formatting rules
-- `references/claude-md-template.md` - Template for generating a vault's `_CLAUDE.md`
+- `references/agents-md-template.md` - Template for generating a vault's `_AGENTS.md`
 
 ## Scripts
 
