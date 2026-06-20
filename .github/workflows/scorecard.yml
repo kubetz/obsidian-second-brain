@@ -1,6 +1,6 @@
-# OpenSSF Scorecard - publishes a public supply-chain security score for this repo.
-# Results show on the badge + at https://securityscorecards.dev and feed external
-# trust registries. Runs weekly and on push to the default branch.
+# OpenSSF Scorecard - checks repository supply-chain security posture.
+# Private forks cannot publish public Scorecard results or upload SARIF to GitHub
+# Code Scanning unless GitHub Code Security / Advanced Security is enabled.
 name: Scorecard supply-chain security
 
 on:
@@ -18,8 +18,12 @@ jobs:
     name: Scorecard analysis
     runs-on: ubuntu-latest
     permissions:
-      security-events: write # upload SARIF to the code-scanning dashboard
-      id-token: write        # publish results to the OpenSSF API (OIDC)
+      # Needed to clone and analyze a private repository.
+      contents: read
+      # Recommended reads for private repositories to avoid GraphQL/SAST gaps.
+      issues: read
+      pull-requests: read
+      checks: read
     steps:
       - name: "Checkout code"
         uses: actions/checkout@v6
@@ -29,18 +33,6 @@ jobs:
       - name: "Run analysis"
         uses: ossf/scorecard-action@v2.4.3
         with:
-          results_file: results.sarif
-          results_format: sarif
-          publish_results: true # makes the score publicly checkable
-
-      - name: "Upload artifact"
-        uses: actions/upload-artifact@v7
-        with:
-          name: SARIF file
-          path: results.sarif
-          retention-days: 5
-
-      - name: "Upload to code-scanning"
-        uses: github/codeql-action/upload-sarif@v4
-        with:
-          sarif_file: results.sarif
+          results_file: results.json
+          results_format: json
+          publish_results: false # private repositories cannot publish public Scorecard results
