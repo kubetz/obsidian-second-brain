@@ -285,8 +285,12 @@ setup_git_assume_unchanged() {
   while IFS= read -r line; do
     local state="${line:0:2}"
     local path="${line:3}"
-    # Only care about unstaged modified files ( M  or  M )
-    [[ "$state" =~ ^[M\ ]M$ ]] || continue
+    # Strip leading/trailing quotes if present from git status output
+    if [[ "$path" =~ ^\"(.*)\"$ ]]; then
+      path="${BASH_REMATCH[1]}"
+    fi
+    # Only care about tracked modified/deleted files (having M or D in status)
+    [[ "$state" =~ (M|D) ]] || continue
     is_our_file "$path" && continue
     ext="${path##*.}"
     case "$ext" in
@@ -295,7 +299,7 @@ setup_git_assume_unchanged() {
     esac
     git -C "$REPO_ROOT" update-index --assume-unchanged "$path"
     stragglers=$((stragglers + 1))
-  done < <(git -C "$REPO_ROOT" status --porcelain 2>/dev/null)
+  done < <(git -C "$REPO_ROOT" -c core.quotepath=false status --porcelain 2>/dev/null)
 
   if [[ $stragglers -gt 0 ]]; then
     warn "Verification pass: force-marked $stragglers converted file(s) with new inodes."
