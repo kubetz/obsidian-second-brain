@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
 # =============================================================================
-# scripts/build.sh - Compile platform-neutral source into dist/<platform>/
+# scripts/build.sh - Compile upstream-canonical source into dist/<platform>/
 # =============================================================================
 # Usage:
 #   bash scripts/build.sh                       # builds all platforms
 #   bash scripts/build.sh --platform claude-code
 #   bash scripts/build.sh --platform codex-cli
 #
-# Reads the platform-neutral source (commands/, references/, DISPATCHER.md)
-# and emits a platform-specific tree under dist/<platform>/.
+# Reads the upstream-canonical source (commands/, references/, DISPATCHER.md)
+# and emits a platform-shaped tree under dist/<platform>/.
 #
 # Each adapter is a self-contained shell script in adapters/<platform>/
 # that defines an adapter_build() function called by this orchestrator.

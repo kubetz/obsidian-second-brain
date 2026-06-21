@@ -17,6 +17,7 @@
 #   1. Validates the vault path
 #   2. Adds OBSIDIAN_VAULT_PATH to ~/.omp/agent/config.json
 #   3. Links skill into ~/.omp/agent/skills/
+#   4. Registers slash commands in ~/.omp/commands/
 
 set -euo pipefail
 
@@ -35,7 +36,7 @@ Usage: bash scripts/setup.sh [--platform claude|omp] <vault-path>
 
 Without --platform, defaults to Claude Code.
   claude - Claude Code (settings.json, hooks, slash commands, MCP)
-  omp    - Oh My Pi     (config.json, skill link, no hooks)
+  omp    - Oh My Pi     (config.json, skill link, slash commands, no hooks)
 EOF
       exit 0
       ;;
@@ -54,6 +55,11 @@ green()  { printf '\033[0;32m%s\033[0m\n' "$1"; }
 yellow() { printf '\033[0;33m%s\033[0m\n' "$1"; }
 red()    { printf '\033[0;31m%s\033[0m\n' "$1"; }
 step()   { printf '\n\033[1m%s\033[0m\n' "$1"; }
+
+build_platform_dist() {
+  local platform="$1"
+  bash "$SKILL_DIR/scripts/build.sh" --platform "$platform"
+}
 
 # ── vault path ───────────────────────────────────────────────────────────────
 
@@ -84,9 +90,11 @@ echo ""
 if [ "$PLATFORM" = "claude" ]; then
 
 SETTINGS="$HOME/.claude/settings.json"
-HOOK_SCRIPT="$SKILL_DIR/hooks/obsidian-bg-agent.sh"
-SESSION_HOOK="$SKILL_DIR/hooks/load_vault_context.py"
-
+build_platform_dist claude-code
+DIST_DIR="$SKILL_DIR/dist/claude-code"
+HOOK_SCRIPT="$DIST_DIR/hooks/obsidian-bg-agent.sh"
+SESSION_HOOK="$DIST_DIR/hooks/load_vault_context.py"
+COMMANDS_SRC="$DIST_DIR/commands"
 # ── make hook executable ──────────────────────────────────────────────────────
 step "1. Making hook scripts executable..."
 chmod +x "$HOOK_SCRIPT"
@@ -124,6 +132,32 @@ fi
 
 # ── add PostCompact hook ──────────────────────────────────────────────────────
 step "3. Adding PostCompact background agent hook..."
+
+# Remove hooks previously installed from the raw repo or older dist paths before
+# adding the current dist hook. Real user-defined hooks are left untouched.
+jq \
+  --arg raw_hook "$SKILL_DIR/hooks/obsidian-bg-agent.sh" \
+  --arg dist_hook_prefix "$SKILL_DIR/dist/" \
+  --arg hook_suffix "/hooks/obsidian-bg-agent.sh" \
+  --arg raw_session "python3 $SKILL_DIR/hooks/load_vault_context.py" \
+  --arg dist_session_prefix "python3 $SKILL_DIR/dist/" \
+  --arg session_suffix "/hooks/load_vault_context.py" '
+  def stale_postcompact:
+    . == $raw_hook or (startswith($dist_hook_prefix) and endswith($hook_suffix));
+  def stale_session:
+    . == $raw_session or (startswith($dist_session_prefix) and endswith($session_suffix));
+  .hooks.PostCompact = (
+    (.hooks.PostCompact // [])
+    | map(.hooks = ((.hooks // []) | map(select(((.command // "") | stale_postcompact) | not))))
+    | map(select((.hooks // []) | length > 0))
+  )
+  | .hooks.SessionStart = (
+    (.hooks.SessionStart // [])
+    | map(.hooks = ((.hooks // []) | map(select(((.command // "") | stale_session) | not))))
+    | map(select((.hooks // []) | length > 0))
+  )
+' "$SETTINGS" > "$SETTINGS.tmp" && mv "$SETTINGS.tmp" "$SETTINGS"
+
 
 HOOK_CMD="$HOOK_SCRIPT"
 
@@ -166,7 +200,6 @@ fi
 # ── register slash commands ──────────────────────────────────────────────────
 step "4. Registering slash commands in ~/.claude/commands/..."
 
-COMMANDS_SRC="$SKILL_DIR/commands"
 COMMANDS_DST="$HOME/.claude/commands"
 
 if [[ ! -d "$COMMANDS_SRC" ]]; then
@@ -179,12 +212,20 @@ else
     name=$(basename "$cmd")
     link="$COMMANDS_DST/$name"
 
-    if [[ -L "$link" ]] && [[ "$(readlink "$link")" == "$cmd" ]]; then
-      continue  # already pointing here
+    if [[ -L "$link" ]]; then
+      link_target="$(readlink "$link")"
+      if [[ "$link_target" == "$cmd" ]]; then
+        continue  # already pointing here
+      elif [[ "$link_target" == "$SKILL_DIR/commands/$name" || "$link_target" == "$SKILL_DIR"/dist/*/commands/"$name" ]]; then
+        rm -f "$link"
+      else
+        yellow "   $link is a symlink to $link_target - leaving unchanged"
+        continue
+      fi
+    elif [[ -e "$link" ]]; then
+      yellow "   $link exists - leaving unchanged"
+      continue
     fi
-
-    # Remove stale link/file
-    [[ -e "$link" || -L "$link" ]] && rm -f "$link"
 
     ln -s "$cmd" "$link"
     count=$((count + 1))
@@ -245,7 +286,9 @@ if [ "$PLATFORM" = "omp" ]; then
 
 OMP_CONFIG="$HOME/.omp/agent/config.json"
 OMP_SKILLS_DIR="$HOME/.omp/agent/skills"
-
+build_platform_dist omp
+DIST_DIR="$SKILL_DIR/dist/omp"
+bash "$SKILL_DIR/scripts/convert.sh" --dist "$DIST_DIR"
 # ── add env var to OMP config ─────────────────────────────────────────────────
 step "1. Updating ~/.omp/agent/config.json..."
 
@@ -279,14 +322,64 @@ step "2. Linking skill into ~/.omp/agent/skills/..."
 mkdir -p "$OMP_SKILLS_DIR"
 OMP_LINK="$OMP_SKILLS_DIR/obsidian-second-brain"
 
-if [[ -L "$OMP_LINK" ]] && [[ "$(readlink "$OMP_LINK")" == "$SKILL_DIR" ]]; then
-  green "   Skill already linked"
+if [[ -L "$OMP_LINK" ]]; then
+  OMP_LINK_TARGET="$(readlink "$OMP_LINK")"
+  if [[ "$OMP_LINK_TARGET" == "$DIST_DIR" ]]; then
+    green "   Skill already linked"
+  elif [[ "$OMP_LINK_TARGET" == "$SKILL_DIR" || "$OMP_LINK_TARGET" == "$SKILL_DIR"/dist/* ]]; then
+    rm -f "$OMP_LINK"
+    ln -s "$DIST_DIR" "$OMP_LINK"
+    green "   Linked → $OMP_LINK"
+  else
+    yellow "   $OMP_LINK is a symlink to $OMP_LINK_TARGET - remove it first or move it, then re-run."
+    exit 1
+  fi
 elif [[ -d "$OMP_LINK" ]]; then
   yellow "   $OMP_LINK is a directory - remove it first or move it, then re-run."
   exit 1
+elif [[ -e "$OMP_LINK" ]]; then
+  yellow "   $OMP_LINK exists - remove it first or move it, then re-run."
+  exit 1
 else
-  ln -s "$SKILL_DIR" "$OMP_LINK"
+  ln -s "$DIST_DIR" "$OMP_LINK"
   green "   Linked → $OMP_LINK"
+fi
+
+# ── register slash commands ──────────────────────────────────────────────────
+step "3. Registering slash commands in ~/.omp/commands/..."
+
+OMP_COMMANDS_SRC="$DIST_DIR/.omp/commands"
+OMP_COMMANDS_DST="$HOME/.omp/commands"
+
+if [[ ! -d "$OMP_COMMANDS_SRC" ]]; then
+  yellow "   No commands directory found at $OMP_COMMANDS_SRC"
+else
+  mkdir -p "$OMP_COMMANDS_DST"
+  count=0
+  for cmd in "$OMP_COMMANDS_SRC"/*.md; do
+    [[ -f "$cmd" ]] || continue
+    name=$(basename "$cmd")
+    link="$OMP_COMMANDS_DST/$name"
+
+    if [[ -L "$link" ]]; then
+      link_target="$(readlink "$link")"
+      if [[ "$link_target" == "$cmd" ]]; then
+        continue  # already pointing here
+      elif [[ "$link_target" == "$SKILL_DIR/commands/$name" || "$link_target" == "$SKILL_DIR"/dist/*/.omp/commands/"$name" || "$link_target" == "$SKILL_DIR"/dist/*/commands/"$name" ]]; then
+        rm -f "$link"
+      else
+        yellow "   $link is a symlink to $link_target - leaving unchanged"
+        continue
+      fi
+    elif [[ -e "$link" ]]; then
+      yellow "   $link exists - leaving unchanged"
+      continue
+    fi
+
+    ln -s "$cmd" "$link"
+    count=$((count + 1))
+  done
+  green "   Linked $count commands into $OMP_COMMANDS_DST"
 fi
 
 

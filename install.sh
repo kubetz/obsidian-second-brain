@@ -31,15 +31,33 @@ case "$(uname -s)" in
   *) IS_WINDOWS=0 ;;
 esac
 
+build_platform_dist() {
+  platform="$1"
+  bash "$SKILL_DIR/scripts/build.sh" --platform "$platform"
+}
+LEGACY_COMMANDS_SRC="$SKILL_DIR"
+LEGACY_COMMANDS_SRC="$LEGACY_COMMANDS_SRC/commands"
+
+
 # ── Claude Code install ───────────────────────────────────────────────
 if [ "$INSTALL_TARGET" = "claude" ]; then
 
+build_platform_dist claude-code
+DIST_DIR="$SKILL_DIR/dist/claude-code"
+
 # Link commands into ~/.claude/commands/ (copy on Windows without Developer Mode)
 echo "Installing slash commands..."
+COMMANDS_SRC="$DIST_DIR/commands"
 COMMANDS_COPIED=0
-for file in "$SKILL_DIR/commands/"*.md; do
+for file in "$COMMANDS_SRC/"*.md; do
   name=$(basename "$file")
   dest="$COMMANDS_DIR/$name"
+  if [ -L "$dest" ]; then
+    link_target=$(readlink "$dest")
+    case "$link_target" in
+      "$LEGACY_COMMANDS_SRC/$name"|"$SKILL_DIR"/dist/*/commands/"$name") rm "$dest" ;;
+    esac
+  fi
   if [ -e "$dest" ] || [ -L "$dest" ]; then
     echo "  skipping $name (already exists)"
   elif [ "$IS_WINDOWS" -eq 0 ]; then
@@ -59,19 +77,23 @@ fi
 
 # Link skill into ~/.claude/skills/
 SKILL_LINK="$SKILLS_DIR/obsidian-second-brain"
-if [ -e "$SKILL_LINK" ]; then
+if [ -L "$SKILL_LINK" ]; then
+  link_target=$(readlink "$SKILL_LINK")
+  case "$link_target" in
+    "$SKILL_DIR"|"$SKILL_DIR"/dist/*) rm "$SKILL_LINK" ;;
+  esac
+fi
+if [ -e "$SKILL_LINK" ] || [ -L "$SKILL_LINK" ]; then
   echo "Skill already linked at $SKILL_LINK"
 elif [ "$IS_WINDOWS" -eq 0 ]; then
-  ln -s "$SKILL_DIR" "$SKILL_LINK"
+  ln -s "$DIST_DIR" "$SKILL_LINK"
   echo "Skill linked at $SKILL_LINK"
 else
-  if MSYS=winsymlinks:nativestrict ln -s "$SKILL_DIR" "$SKILL_LINK" 2>/dev/null; then
+  if MSYS=winsymlinks:nativestrict ln -s "$DIST_DIR" "$SKILL_LINK" 2>/dev/null; then
     echo "Skill linked at $SKILL_LINK"
   else
-    echo "Symlink failed (requires Developer Mode). For the cleanest setup,"
-    echo "clone the repo directly into the skills folder:"
-    echo "  git clone https://github.com/eugeniughelbur/obsidian-second-brain ~/.claude/skills/obsidian-second-brain"
-    echo "Then re-run install.sh from that location."
+    cp -R "$DIST_DIR" "$SKILL_LINK"
+    echo "Skill copied to $SKILL_LINK"
   fi
 fi
 
@@ -83,23 +105,43 @@ fi
 # ── Oh My Pi install ───────────────────────────────────────────────────
 if [ "$INSTALL_TARGET" = "omp" ]; then
 
+build_platform_dist omp
+DIST_DIR="$SKILL_DIR/dist/omp"
+bash "$SKILL_DIR/scripts/convert.sh" --dist "$DIST_DIR"
+
 OMP_LINK="$OMP_SKILLS_DIR/obsidian-second-brain"
-if [ -e "$OMP_LINK" ]; then
+if [ -L "$OMP_LINK" ]; then
+  link_target=$(readlink "$OMP_LINK")
+  case "$link_target" in
+    "$SKILL_DIR"|"$SKILL_DIR"/dist/*) rm "$OMP_LINK" ;;
+  esac
+fi
+if [ -e "$OMP_LINK" ] || [ -L "$OMP_LINK" ]; then
   echo "Skill already linked at $OMP_LINK"
 elif [ "$IS_WINDOWS" -eq 0 ]; then
-  ln -s "$SKILL_DIR" "$OMP_LINK"
+  ln -s "$DIST_DIR" "$OMP_LINK"
   echo "Skill linked at $OMP_LINK"
 else
-  cp -R "$SKILL_DIR" "$OMP_LINK"
-  echo "Skill copied to $OMP_LINK"
+  if MSYS=winsymlinks:nativestrict ln -s "$DIST_DIR" "$OMP_LINK" 2>/dev/null; then
+    echo "Skill linked at $OMP_LINK"
+  else
+    cp -R "$DIST_DIR" "$OMP_LINK"
+    echo "Skill copied to $OMP_LINK"
+  fi
 fi
 
 # Also symlink commands into OMP's command path
 OMP_COMMANDS_DIR="$HOME/.omp/commands"
 mkdir -p "$OMP_COMMANDS_DIR"
-for file in "$SKILL_DIR/commands/"*.md; do
+for file in "$DIST_DIR/.omp/commands/"*.md; do
   name=$(basename "$file")
   dest="$OMP_COMMANDS_DIR/$name"
+  if [ -L "$dest" ]; then
+    link_target=$(readlink "$dest")
+    case "$link_target" in
+      "$LEGACY_COMMANDS_SRC/$name"|"$SKILL_DIR"/dist/*/.omp/commands/"$name") rm "$dest" ;;
+    esac
+  fi
   [ -e "$dest" ] || [ -L "$dest" ] && continue
   ln -s "$file" "$dest"
 done
