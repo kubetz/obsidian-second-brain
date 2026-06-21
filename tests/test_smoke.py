@@ -27,6 +27,200 @@ def _json_from_stdout(stdout: str) -> dict:
     raise AssertionError(f"JSON payload not found in stdout:\n{stdout}")
 
 
+def test_dist_only_neutralization_preserves_source():
+    canonical_source_paths = (
+        REPO_ROOT / "references/claude-md-template.md",
+        REPO_ROOT / "references/claude-md-assistant-template.md",
+        REPO_ROOT / "examples/sample-vault/_CLAUDE.md",
+    )
+    generated_source_paths = (
+        REPO_ROOT / "references/agents-md-template.md",
+        REPO_ROOT / "references/agents-md-assistant-template.md",
+        REPO_ROOT / "examples/sample-vault/_AGENTS.md",
+    )
+    platform_cases = (
+        (
+            "codex-cli",
+            REPO_ROOT / "dist/codex-cli/.codex/references",
+            REPO_ROOT / "dist/codex-cli/.codex/commands/obsidian-save.md",
+        ),
+        (
+            "gemini-cli",
+            REPO_ROOT / "dist/gemini-cli/.gemini/references",
+            REPO_ROOT / "dist/gemini-cli/.gemini/commands/obsidian-save.md",
+        ),
+        (
+            "opencode",
+            REPO_ROOT / "dist/opencode/.opencode/references",
+            REPO_ROOT / "dist/opencode/.opencode/commands/obsidian-save.md",
+        ),
+        (
+            "omp",
+            REPO_ROOT / "dist/omp/.omp/references",
+            REPO_ROOT / "dist/omp/.omp/commands/obsidian-save.md",
+        ),
+    )
+
+    for path in canonical_source_paths:
+        assert path.is_file()
+    for path in generated_source_paths:
+        assert not path.exists()
+
+    initial_status = subprocess.run(
+        [
+            "git",
+            "status",
+            "--porcelain",
+            "--",
+            "commands",
+            "references",
+            "examples/sample-vault",
+        ],
+        cwd=REPO_ROOT,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    assert initial_status.returncode == 0, initial_status.stdout + initial_status.stderr
+    initial_diff = subprocess.run(
+        [
+            "git",
+            "diff",
+            "--",
+            "commands",
+            "references",
+            "examples/sample-vault",
+        ],
+        cwd=REPO_ROOT,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    assert initial_diff.returncode == 0, initial_diff.stdout + initial_diff.stderr
+
+
+
+    for platform, references_dir, command_file in platform_cases:
+        result = subprocess.run(
+            ["bash", "scripts/build.sh", "--platform", platform],
+            cwd=REPO_ROOT,
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        assert result.returncode == 0, result.stdout + result.stderr
+
+        assert (references_dir / "claude-md-template.md").is_file()
+        assert (references_dir / "claude-md-assistant-template.md").is_file()
+
+        convert = subprocess.run(
+            ["bash", "scripts/convert.sh", "--dist", f"dist/{platform}"],
+            cwd=REPO_ROOT,
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        assert convert.returncode == 0, convert.stdout + convert.stderr
+
+        for path in canonical_source_paths:
+            assert path.is_file()
+        for path in generated_source_paths:
+            assert not path.exists()
+
+        assert (references_dir / "agents-md-template.md").is_file()
+        assert (references_dir / "agents-md-assistant-template.md").is_file()
+        assert not (references_dir / "claude-md-template.md").exists()
+        assert not (references_dir / "claude-md-assistant-template.md").exists()
+
+        command_text = command_file.read_text(encoding="utf-8")
+        assert "## Synopsis" in command_text
+        assert "_AGENTS.md" in command_text
+        assert "## For future Claude" not in command_text
+        assert "_CLAUDE.md" not in command_text
+
+        status = subprocess.run(
+            [
+                "git",
+                "status",
+                "--porcelain",
+                "--",
+                "commands",
+                "references",
+                "examples/sample-vault",
+            ],
+            cwd=REPO_ROOT,
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        assert status.returncode == 0, status.stdout + status.stderr
+        assert status.stdout == initial_status.stdout
+        diff = subprocess.run(
+            [
+                "git",
+                "diff",
+                "--",
+                "commands",
+                "references",
+                "examples/sample-vault",
+            ],
+            cwd=REPO_ROOT,
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        assert diff.returncode == 0, diff.stdout + diff.stderr
+        assert diff.stdout == initial_diff.stdout
+
+
+def test_claude_dist_converts_only_when_requested():
+    result = subprocess.run(
+        ["bash", "scripts/build.sh", "--platform", "claude-code"],
+        cwd=REPO_ROOT,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+
+    assert (REPO_ROOT / "dist/claude-code/references/claude-md-template.md").is_file()
+    assert not (REPO_ROOT / "dist/claude-code/references/agents-md-template.md").exists()
+
+    source_command = REPO_ROOT / "commands/obsidian-save.md"
+    dist_command = REPO_ROOT / "dist/claude-code/commands/obsidian-save.md"
+    source_text = source_command.read_text(encoding="utf-8")
+    dist_text = dist_command.read_text(encoding="utf-8")
+    if "## For future Claude" in source_text:
+        assert "## For future Claude" in dist_text
+    if "_CLAUDE.md" in source_text:
+        assert "_CLAUDE.md" in dist_text
+    distill_command = REPO_ROOT / "dist/claude-code/commands/obsidian-distill.md"
+    distill_text = distill_command.read_text(encoding="utf-8")
+    assert "## For future Claude" in distill_text
+
+
+    convert = subprocess.run(
+        ["bash", "scripts/convert.sh", "--dist", "dist/claude-code"],
+        cwd=REPO_ROOT,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    assert convert.returncode == 0, convert.stdout + convert.stderr
+
+    assert (REPO_ROOT / "dist/claude-code/references/agents-md-template.md").is_file()
+    assert not (REPO_ROOT / "dist/claude-code/references/claude-md-template.md").exists()
+
+    command_text = dist_command.read_text(encoding="utf-8")
+    assert "## Synopsis" in command_text
+    assert "_AGENTS.md" in command_text
+    assert "## For future Claude" not in command_text
+    assert "_CLAUDE.md" not in command_text
+    distill_text = distill_command.read_text(encoding="utf-8")
+    assert "## Synopsis" in distill_text
+    assert "## For future Claude" not in distill_text
+
+
 def test_codex_cli_build_generates_expected_files():
     """The codex-cli adapter must emit the AGENTS.md dispatcher and the command
     bodies. This guards the adapter pipeline that every command change depends on."""
