@@ -194,6 +194,10 @@ def test_claude_dist_converts_only_when_requested():
         assert "## For future Claude" in dist_text
     if "_CLAUDE.md" in source_text:
         assert "_CLAUDE.md" in dist_text
+    distill_command = REPO_ROOT / "dist/claude-code/commands/obsidian-distill.md"
+    distill_text = distill_command.read_text(encoding="utf-8")
+    assert "Follow: For future Claude, Core concepts" in distill_text
+
 
     convert = subprocess.run(
         ["bash", "scripts/convert.sh", "--dist", "dist/claude-code"],
@@ -212,6 +216,9 @@ def test_claude_dist_converts_only_when_requested():
     assert "_AGENTS.md" in command_text
     assert "## For future Claude" not in command_text
     assert "_CLAUDE.md" not in command_text
+    distill_text = distill_command.read_text(encoding="utf-8")
+    assert "Follow: Synopsis, Core concepts" in distill_text
+    assert "Follow: For future Claude, Core concepts" not in distill_text
 
 
 def test_codex_cli_build_generates_expected_files():

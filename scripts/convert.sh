@@ -96,6 +96,7 @@ suffixes = {'.md', '.py', '.sh', '.yml', '.yaml', '.json', '.toml', '.html', '.c
 replacements = [
     ('_CLAUDE.md', '_AGENTS.md'),
     ('## For future Claude', '## Synopsis'),
+    ('Follow: For future Claude, Core concepts', 'Follow: Synopsis, Core concepts'),
     ('future-Claude', 'future agent'),
     ('Future-Claude', 'Future agent'),
     ('future Claude', 'future agent'),

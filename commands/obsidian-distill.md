@@ -106,7 +106,7 @@ Before creating a new `Knowledge/<Domain>/<Concept>.md`, search the vault exhaus
 
 Create notes in `Knowledge/<Domain>/` appropriate to the nature:
 
-- **For teaching segments:** one note per durable subtopic when multiple reusable concepts were taught; one focused note when the teaching is about a single concept. Follow: Synopsis, Core concepts, Examples, Sources, Connections, Open questions. If useful for a single topic, add `## Learning path` inside the note instead of creating a syllabus.
+- **For teaching segments:** one note per durable subtopic when multiple reusable concepts were taught; one focused note when the teaching is about a single concept. Follow: For future Claude, Core concepts, Examples, Sources, Connections, Open questions. If useful for a single topic, add `## Learning path` inside the note instead of creating a syllabus.
 - **For peer ideation / brainstorming:** create or update `Knowledge/<Domain>/Ideas <file_title>.md` - capture the ideas that emerged, whose idea it was (user or AI), which ones were refined or rejected, and any conclusions.
 - **For editing / proofreading:** create or update `Knowledge/<Domain>/Process - <file_title>.md` - capture techniques used, patterns caught, and rules of thumb the user can apply next time. The final draft goes in Step 2.
 - **For planning / decision-making:** create or update `Knowledge/<Domain>/Decision Log - <file_title>.md` - capture what was decided, what alternatives were considered, why each was rejected.
