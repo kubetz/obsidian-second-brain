@@ -12,6 +12,7 @@ Do not commit neutralized source-tree files. If they appear in the source tree, 
 
 | File | Type | Notes |
 |---|---|---|
+| `.github/workflows/scorecard.yml` | Modified | Private-fork Scorecard permissions and publishing constraints |
 | `AGENTS.md` | New | Fork operating guide for AI agents |
 | `FORK_MAINTENANCE.md` | New | This file |
 | `FORK_TODO.md` | New | Fork task list |
@@ -22,6 +23,8 @@ Do not commit neutralized source-tree files. If they appear in the source tree, 
 | `scripts/build.sh` | Modified | Adds OMP platform target and builds platform dist trees |
 | `scripts/convert.sh` | Modified | Optional dist-only neutralization helper |
 | `scripts/setup.sh` | Modified | Adds OMP setup and installs from generated dist |
+| `tests/test_smoke.py` | Modified | Smoke coverage for dist-only conversion and build outputs |
+| `uv.lock` | Modified | Locked Python tooling/dependency state for this fork |
 
 ## Dist conversion patterns
 
