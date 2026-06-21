@@ -1,204 +1,101 @@
 ---
-description: Distill durable knowledge from a conversation - preserves auditable source excerpts and synthesizes reusable notes
+description: Distill durable knowledge from a conversation with auditable source excerpts
 category: vault
 triggers_en: ["distill this conversation", "extract knowledge from conversation", "save this as learning", "create notes from this", "obsidian distill"]
 ---
 
 Use the obsidian-second-brain skill. Execute `/obsidian-distill`:
 
-Read the conversation. Distill only durable signal into the vault, preserving enough verbatim source material for auditability. Do the following in order, without asking questions.
+1. Read vault context first:
+   - Read `_CLAUDE.md` first if it exists in the vault root, especially the Folder Map and any command-specific rules.
+   - Read `index.md` if it exists so new notes integrate with the current vault instead of creating duplicates.
+   - Use the vault's existing folder map and naming style. Prefer existing project, knowledge, decision, writing, or source folders over inventing new top-level folders.
 
-### Step 0 - Analyze scope and classify
+2. Classify the conversation before writing anything:
+   - **Domain** - the broad subject, using the vault's existing domain names when possible.
+   - **Nature** - one or more of `teaching`, `peer ideation`, `editing / proofreading`, `planning / decision-making`, `troubleshooting / debugging`, or `other`.
+   - **Distillation mode** - one or more of `source-archive`, `knowledge-distill`, `output-polish`, `decision-record`, or `learning-path`.
+   - **Scope** - `full-conversation`, `selected-excerpts`, or `single-thread`.
+   - **Durable output** - concepts, decisions, methods, reusable examples, polished writing, code, plans, or other material worth preserving.
+   - Derive `display_title`, ASCII-safe `file_title`, short kebab-case `slug`, classification values, and `knowledge_tags`. If the domain is unclear, use the user's supplied title or the clearest topic in the conversation.
 
-Analyze the conversation to determine:
+3. Save the auditable source transcript:
+   - Choose the source path from the vault schema and call it `source_path`:
+     - Use an existing conversation-source folder from `_CLAUDE.md` or `index.md` if one exists.
+     - Otherwise use `raw/transcripts/YYYY-MM-DD - <file_title>.md`.
+   - Treat this as immutable raw-source material, not a synthesized AI-first note. Use Source Note frontmatter from `/obsidian-ingest`: `date`, `tags: [source, transcript, conversation]`, `source_type: transcript`, `content_hash`, optional `source_title` or `source_url` if known, plus `nature`, `mode`, and `scope` when useful for retrieval.
+   - Add `## For future Claude` with 2-3 sentences explaining what was preserved, why it matters, and whether the transcript is full or excerpted. This heading is for retrieval, not a signal that the raw transcript is a synthesized note.
+   - Include the minimum verbatim source needed to audit the distilled notes:
+     - For `full-conversation`, include every user and assistant turn.
+     - For `selected-excerpts` or `single-thread`, include only relevant teaching, ideation, decision, troubleshooting, context-setting, and output-producing turns.
+     - Omit operational setup, command chatter, ingestion boilerplate, unrelated branches, and ephemeral context unless needed to understand preserved material.
+   - If anything is omitted, add `## Omitted ranges` with turn ranges and short reasons. Do not summarize omitted knowledge; include any durable material verbatim instead.
+   - Preserve included source exactly as it appeared. Do not synthesize, clean up, reorder, or merge source blocks.
 
-- **Broad domain** - the subject matter (e.g. "LLM", "Rust", "Baking", "Startup Planning")
-- **Nature** - classify as one or more of:
-  - **teaching** - AI taught the user a subject (Q&A, explanations, examples)
-  - **peer ideation** - user and AI debated, brainstormed, riffed on ideas
-  - **editing / proofreading** - AI refined the user's existing writing or ideas
-  - **planning / decision-making** - user works through a plan with AI's feedback
-  - **troubleshooting / debugging** - user resolved a problem with AI's help
-  - **other** - describe briefly
-- **Distillation mode** - classify the primary output as one or more of:
-  - **source-archive** - preserve mostly raw material for later use
-  - **knowledge-distill** - extract reusable concepts, methods, or explanations
-  - **output-polish** - preserve a finished artifact, draft, code snippet, or polished idea
-  - **decision-record** - preserve choices, tradeoffs, rejected paths, and rationale
-  - **learning-path** - produce a curriculum, syllabus, or ordered study plan
-- **Scope worth preserving** - decide whether the durable source is:
-  - **full-conversation** - most of the conversation is relevant signal
-  - **selected-excerpts** - only some turns are durable; omit setup, operational chatter, or unrelated branches
-  - **single-thread** - one focused teaching, ideation, decision, or troubleshooting thread inside a larger session
-- **Key output worth preserving** - what makes this conversation vault-worthy:
-  - Written output (final draft, polished ideas, code)
-  - New concepts / insights that did not exist before
-  - Decisions made or paths rejected
-  - A process or method the user might want to repeat
+4. Add source transcript block IDs:
+   - Annotate every included user block with `^<slug>-u-1`, `^<slug>-u-2`, and so on.
+   - Annotate every included assistant block with `^<slug>-a-1`, `^<slug>-a-2`, and so on.
+   - Put each block ID on its own line immediately after the paragraph or block it anchors, followed by one blank line before the next block:
 
-Derive:
-- `folder = Knowledge/<Domain>/` - follow the vault's existing directory style (Title Case with spaces between words, not PascalCase, e.g. `Knowledge/Startup Planning/`, `Knowledge/Rust/`, `Knowledge/Microeconomics/`). Acronyms stay uppercase: `Knowledge/LLM/`.
-- `display_title` - concise human title for synopsis/frontmatter if the original title matters.
-- `file_title` - ASCII-safe title for filenames and wikilinks. Replace banned or path-unsafe characters: em/en dash -> `-`, curly quotes -> straight quotes or remove, `/` and `:` -> `-`, repeated whitespace -> single spaces. Trim leading/trailing spaces and punctuation.
-- `source_path = Research/Conversations/YYYY-MM-DD - <file_title>.md` - ASCII hyphen only. Do not use em dash.
-- `slug` - short kebab-case form of `file_title` for block IDs, e.g. `llm-fundamentals`, `rust-debug`.
-- `conversation_tags` - domain and nature tags. The frontmatter must also include the type tag `conversation`.
-- `knowledge_tags` - broad domain tags only (never the conversation title). The frontmatter must also include the type tag `knowledge`.
+     ```text
+     What do you think about this approach?
+     ^llm-ideas-u-3
 
-If the domain is not obvious from content, use the title the user specifies.
+     I think the tradeoff is worth it because...
+     ^llm-ideas-a-3
+     ```
 
-### Step 1 - Save the source transcript
+   - Do not put block IDs on the same line as text, inside lists, after blank content, or separated from their anchored paragraph by extra blank lines.
 
-Create `Research/Conversations/YYYY-MM-DD - <file_title>.md` with:
+5. Save finished output only when the conversation produced one:
+   - If the conversation created a reusable draft, design, code snippet, plan, prompt, or polished idea, save that artifact to the most appropriate existing vault location.
+   - Prefer existing project, writing, knowledge, or decision locations found in `_CLAUDE.md` and `index.md`.
+   - Do not invent new top-level artifact folders unless the vault already uses them or the user explicitly asks for that structure.
+   - Link the artifact back to the source transcript. The source transcript remains the evidence; the artifact should be usable without rereading the conversation.
 
-- Frontmatter:
+6. Synthesize reusable notes:
+   - Read every included source block and group durable material by concept, decision, method, example, output, or open question, regardless of conversation order.
+   - Search existing notes exhaustively by aliases and nearby terms before creating a new note. Update or extend existing notes when they cover the same concept.
+   - Use the vault's existing knowledge, project, decision, or domain folders. If no suitable folder exists, create the smallest schema-consistent location and update the Folder Map later.
+   - For teaching, create focused concept notes or add `## Learning path` inside a note when useful.
+   - For ideation, capture emerged ideas, user-vs-AI provenance, refinements, rejected options, and conclusions.
+   - For editing, capture reusable techniques and patterns; keep final polished output in step 5.
+   - For planning or decisions, capture the decision, alternatives, tradeoffs, rejected paths, and rationale.
+   - For troubleshooting, capture symptoms, diagnosis steps, root cause, resolution, and the related project note if any.
+   - For mixed conversations, create the smallest set of notes that preserves the durable signal.
 
-  ```yaml
-  ---
-  date: YYYY-MM-DD
-  type: conversation
-  tags: [conversation, $conversation_tags]
-  nature: [<classification(s)>]
-  mode: [<distillation-mode(s)>]
-  scope: full-conversation | selected-excerpts | single-thread
-  ai-first: true
-  ---
-  ```
+7. Apply provenance rules to every synthesized note:
+   - Frontmatter includes `date`, a correct `type`, `tags`, `source`, `confidence`, `verification`, and `ai-first: true`.
+   - `source` must point to the chosen source transcript path, for example `source: "[[<source_path>]]"`.
+   - `## For future Claude` is mandatory and states what the note covers, why it matters, and any scope or staleness caveat.
+   - Every substantive claim, idea, decision, example, or technique links to a path-qualified source block, such as `[[<source_path>#^<slug>-a-N]]` or `[[<source_path>#^<slug>-u-N]]`.
+   - Block references prove only what the conversation said. They do not prove external factual truth.
+   - Preserve URLs inline for external factual claims. Add recency markers for time-sensitive claims.
+   - Mark unsourced external claims as `conversation-stated` or `needs-verification` instead of presenting them as verified fact.
+   - Name notes by their concept or artifact, not by the conversation title.
+   - Do not create notes for purely ephemeral context.
 
-- `## For future Claude` - 2-3 sentences describing what was preserved, why it matters, and whether the transcript is full or excerpted.
-- The minimum verbatim source needed to verify the extracted knowledge:
-  - For `full-conversation`, include every user and assistant turn.
-  - For `selected-excerpts` or `single-thread`, include only relevant teaching, ideation, decision, troubleshooting, context-setting, and output-producing turns.
-  - Omit operational setup, command execution chatter, ingestion boilerplate, unrelated branches, and purely ephemeral context unless needed to understand preserved material.
-- `## Omitted ranges` when scope is not `full-conversation`:
-  - List omitted turn ranges and short reasons, e.g. `Turns 1-14 - video ingestion setup, no durable knowledge.`
-  - Do not summarize omitted knowledge. If a range contains durable knowledge, include the relevant verbatim blocks instead.
-- Every included user turn and assistant turn, presented verbatim as they appeared.
-- Annotate each included user block with `^<slug>-u-1`, `^<slug>-u-2`, ... (sequential within included source).
-- Annotate each included assistant block with `^<slug>-a-1`, `^<slug>-a-2`, ... (sequential within included source).
-- **Placement:** block ID on its own line, immediately after the paragraph or block it anchors, with one blank line before the next block:
+8. Create a syllabus only when warranted:
+   - Create a syllabus only if the teaching spans multiple subtopics, multiple notes need an ordered path, the output is course-like, or the user explicitly requested one.
+   - Include `## For future Claude`, prerequisites, recommended order, module links, complexity, and key source block links.
+   - If the teaching is a single focused concept, add `## Learning path` inside that concept note only if useful.
 
-  ```text
-  What do you think about this approach?
-  ^llm-ideas-u-3
+9. Update vault structure:
+   - Update today's daily note using the vault's existing daily-note location and link to everything created or updated.
+   - Update root `index.md` or the relevant domain/project index without polluting the root with every leaf note forever.
+   - Append an operation-log entry using the vault's existing log location and format.
+   - If a new folder was necessary and is not already in `_CLAUDE.md`'s Folder Map, add it with a short description.
+   - Confirm each path-qualified source block link resolves to an existing block ID before finishing.
 
-  I think the tradeoff is worth it because...
-  ^llm-ideas-a-3
-  ```
+10. Report back:
+    - Source transcript path and whether it is full or excerpted.
+    - Notes, artifacts, syllabus, daily note, log, index, and Folder Map paths created or updated.
+    - Any omitted ranges, unresolved verification gaps, or skipped outputs with reasons.
 
-- Do NOT put block IDs on the same line as text, inside a list, or separated from their paragraph by extra blank lines.
-- Do NOT synthesize or reorganize the included source. The included transcript is immutable evidence, even when excerpted.
-
-### Step 2 - Extract preserved output (if any)
-
-If the conversation produced substantive written output (a draft, a design doc, a code snippet, a set of polished ideas), save it to the appropriate location:
-- **Writing / article** - `Writings/` or `Knowledge/<Domain>/`
-- **Code** - `Code/` or `Projects/<Project>/`
-- **Design decisions** - `Projects/<Project>/` or `Knowledge/ADRs/`
-
-Use your judgment. The key rule: the source transcript is the evidence; anything extracted here is a finished artifact someone (or future Claude) could use directly without reading the conversation.
-
-### Step 3 - Extract structured knowledge or insights
-
-Read every included block. Group related material by concept, decision, method, example, output, or open question, regardless of conversation order. Do not assume turns form clean user/assistant pairs.
-
-Before creating a new `Knowledge/<Domain>/<Concept>.md`, search the vault exhaustively for existing notes about the same concept, including aliases and nearby terms. Update or extend an existing note when appropriate. Do not create duplicates because the title differs.
-
-Create notes in `Knowledge/<Domain>/` appropriate to the nature:
-
-- **For teaching segments:** one note per durable subtopic when multiple reusable concepts were taught; one focused note when the teaching is about a single concept. Follow: For future Claude, Core concepts, Examples, Sources, Connections, Open questions. If useful for a single topic, add `## Learning path` inside the note instead of creating a syllabus.
-- **For peer ideation / brainstorming:** create or update `Knowledge/<Domain>/Ideas <file_title>.md` - capture the ideas that emerged, whose idea it was (user or AI), which ones were refined or rejected, and any conclusions.
-- **For editing / proofreading:** create or update `Knowledge/<Domain>/Process - <file_title>.md` - capture techniques used, patterns caught, and rules of thumb the user can apply next time. The final draft goes in Step 2.
-- **For planning / decision-making:** create or update `Knowledge/<Domain>/Decision Log - <file_title>.md` - capture what was decided, what alternatives were considered, why each was rejected.
-- **For troubleshooting / debugging:** create or update `Knowledge/<Domain>/Debugging Log - <file_title>.md` - capture root cause, diagnosis steps, and resolution. Update the relevant `Projects/` note if a project was involved.
-- **For mixed or other nature:** use the smallest set of notes that captures the durable signal worth keeping.
-
-Rules (apply to all types):
-- Frontmatter uses:
-
-  ```yaml
-  ---
-  date: YYYY-MM-DD
-  type: knowledge
-  tags: [knowledge, $knowledge_tags]
-  source: "[[Research/Conversations/YYYY-MM-DD - <file_title>]]"
-  confidence: stated
-  verification: conversation-stated
-  ai-first: true
-  ---
-  ```
-
-- `## For future Claude` is mandatory and must state what the note covers, why it matters, and any scope or staleness caveat.
-- Synthesize. Do NOT just re-list the conversation blocks.
-- Every substantive claim, idea, decision, or example should trace back to a path-qualified source block link like `[[Research/Conversations/YYYY-MM-DD - <file_title>#^<slug>-a-N]]` or `[[Research/Conversations/YYYY-MM-DD - <file_title>#^<slug>-u-N]]` so it resolves from extracted notes and can be verified against the source transcript.
-- Block references prove provenance only: they show what the conversation said. They do not prove external factual truth.
-- If the conversation included a URL or source for an external factual claim, preserve the URL inline with a recency marker.
-- If an external factual claim has no source URL, mark `verification: conversation-stated` or `verification: needs-verification` in frontmatter or inline instead of presenting it as verified fact.
-- Name notes by their concept, not by the conversation name.
-- Use recency markers ("as of June 2026") on time-sensitive claims.
-- Use confidence levels (`stated | high | medium | speculation`) and separate verification markers (`conversation-stated | needs-verification | source-verified`) where appropriate.
-- Do not create notes for content that is purely ephemeral or personal context with no lasting value.
-
-### Step 4 - Create a syllabus only when warranted
-
-Create `Knowledge/<Domain>/Syllabus - <file_title>.md` only when at least one is true:
-- The preserved teaching spans multiple subtopics or chapters.
-- Multiple Knowledge notes were created and need an ordered learning path.
-- The output is meant as a reusable course, curriculum, or onboarding path.
-- The user explicitly asked for a syllabus.
-
-When creating a syllabus, use:
-
-```yaml
----
-date: YYYY-MM-DD
-type: syllabus
-tags: [syllabus, knowledge, $knowledge_tags]
-source: "[[Research/Conversations/YYYY-MM-DD - <file_title>]]"
-ai-first: true
----
-```
-
-Include:
-- `## For future Claude` - what this syllabus teaches, who it is for, and what source it came from.
-- The recommended teaching order for someone else to follow.
-- Prerequisites and dependencies between subtopics.
-- For each module: link to the Knowledge note, estimated complexity, and key block IDs from the source transcript.
-
-If the teaching is a single focused concept, do not create a syllabus. Add `## Learning path` inside the concept note only if useful.
-
-### Step 5 - Update the vault structure
-
-- Create today's daily note at `Daily/YYYY-MM-DD.md` if it does not exist - link to everything created.
-- Update indexes without polluting the root:
-  - If the domain has many notes or a `Knowledge/<Domain>/index.md`, update or create that domain index and link all new domain notes there.
-  - If only 1-3 notes were created and no domain index exists, adding entries directly under `## Knowledge/<Domain>/` in root `index.md` is acceptable.
-  - Root `index.md` should prefer linking domain indexes over listing every leaf note forever.
-- Append to `Logs/YYYY-MM-DD.md` with a summary line.
-- If `Knowledge/<Domain>/` is not yet in `_CLAUDE.md`'s Folder Map, add a row: `Knowledge/<Domain>/` - <short description>.
-
-### Verification checklist
-
-- [ ] `Research/Conversations/YYYY-MM-DD - <file_title>.md` - source transcript exists, with `ai-first: true`, `type: conversation`, type tag, correct `scope`, and ASCII-safe filename.
-- [ ] Source transcript scope is correct - full conversation only when most turns are durable signal; otherwise omitted ranges are listed with reasons.
-- [ ] Included source blocks are verbatim and not synthesized or reorganized.
-- [ ] Every included user/assistant block has exactly one block ID.
-- [ ] No dangling block IDs exist at the end of the source transcript or after blank content.
-- [ ] Step 2 output created (if applicable) - finished artifact someone could reuse.
-- [ ] Knowledge/insight notes created (at minimum one) - synthesized, with `ai-first: true`, type tag, path-qualified `source`, and `#^` block references.
-- [ ] Existing concept notes were searched before new notes were created; duplicates were not created under alternate names.
-- [ ] External factual claims preserve URLs/recency markers when available; unsourced external claims are marked `conversation-stated` or `needs-verification`.
-- [ ] Syllabus created only if warranted - multi-topic, multiple notes, course-like, or explicitly requested.
-- [ ] `Daily/YYYY-MM-DD.md` - links to everything created today.
-- [ ] `Logs/YYYY-MM-DD.md` - operation log entry.
-- [ ] `index.md` and/or `Knowledge/<Domain>/index.md` updated without root-index pollution.
-- [ ] `_CLAUDE.md` updated (if `Knowledge/<Domain>/` is not yet in Folder Map).
-- [ ] Every source block link (`[[Research/Conversations/YYYY-MM-DD - <file_title>#^<slug>-a-N]]` or `...#^<slug>-u-N]]`) resolves to an existing block ID in the source transcript.
-
-If any of these is missing or wrong, fix it before finishing.
+Distill only durable signal. Search before creating anything. Keep enough verbatim source for auditability, but do not archive noise just because it appeared in the conversation.
 
 ---
 
-**AI-first rule:** Every note created or updated by this command MUST follow `references/ai-first-rules.md` - `## For future Claude` preamble, rich frontmatter (`type`, `date`, `tags`, `ai-first: true`, plus type-specific fields), recency markers per external claim, mandatory `[[wikilinks]]` for every person/project/concept referenced, sources preserved verbatim with URLs inline, and confidence levels where applicable. The vault is for future-Claude retrieval - not human reading.
+**AI-first rule:** Every synthesized note or reusable artifact created or updated by this command MUST follow `references/ai-first-rules.md` - `## For future Claude` preamble, rich frontmatter (`type`, `date`, `tags`, `ai-first: true`, plus type-specific fields), recency markers per external claim, mandatory `[[wikilinks]]` for every person/project/concept referenced, sources preserved verbatim with URLs inline, and confidence levels where applicable. Raw transcripts remain immutable Source Notes; synthesized outputs are for future-Claude retrieval, not human reading.
 
 **Anti-fabrication:** Search exhaustively before claiming any note, person, or file is absent - false absence is the most common failure mode - and never invent facts, entities, or dates (mark unknowns as `TBD`). See the anti-fabrication and search-completeness hard rules in `references/ai-first-rules.md`.
