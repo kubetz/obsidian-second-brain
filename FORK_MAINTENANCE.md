@@ -10,15 +10,16 @@ We keep our permanent diff against upstream small - only additive files and targ
 
 | File | Type | Notes |
 |---|---|---|
+| `.gitignore` | Modified | Added ephemeral transform output patterns |
 | `AGENTS.md` | New | Fork operating guide for AI agents |
-| `adapters/omp/adapter.sh` | New | Oh My Pi platform adapter |
 | `FORK_MAINTENANCE.md` | New | This file |
 | `FORK_TODO.md` | New | Fork task list |
-| `scripts/__init__.py` | New | Package marker for uv run -m |
-| `scripts/convert.sh` | New | Idempotent conversion script |
-| `.gitignore` | Modified | Added ephemeral transform patterns |
+| `adapters/omp/adapter.sh` | New | Oh My Pi platform adapter |
+| `commands/obsidian-distill.md` | Modified | Fork-owned command infill |
 | `install.sh` | Modified | Added `--omp` flag |
+| `scripts/__init__.py` | New | Package marker for uv run -m |
 | `scripts/build.sh` | Modified | Added OMP platform target |
+| `scripts/convert.sh` | New | Idempotent conversion script |
 | `scripts/setup.sh` | Modified | Added OMP section |
 
 ## Convert patterns
@@ -67,51 +68,58 @@ bash scripts/convert.sh --status
 
 ## Git assume-unchanged - how it works
 
-To keep `git status` clean, the conversion marks transformed files with
-`git update-index --assume-unchanged`. Git will not check these files for local
-modifications, so pull/rebase produce clean merges.
+To keep `git status` focused on real fork work, `bash scripts/convert.sh --setup`
+marks only deterministic conversion outputs with `git update-index
+--assume-unchanged`.
+
+The mark set is intentionally narrow:
+
+1. A content-changed path is marked only when the worktree bytes exactly equal
+   the deterministic conversion of the `HEAD` blob for that same path.
+2. Deliberate tracked source deletions from file renames are marked when the
+   generated destination exists:
+   - `references/claude-md-template.md`
+   - `references/claude-md-assistant-template.md`
+   - `examples/sample-vault/_CLAUDE.md`
+3. Stale lowercase-`h` paths from the old broad-extension workflow are unmarked
+   when they are not expected conversions.
+4. Fork-owned files in the table above are never silently repaired. If any is
+   lowercase `h`, `--setup` fails before converting content and tells you to run
+   `git update-index --no-assume-unchanged <path>`.
 
 Run `bash scripts/convert.sh --setup` after every `--apply`.
 
-### Why the flag can be silently lost
+### Why the flag can be lost
 
-The conversion replaces file content using `cp "$tmp" "$f"` (see
-`apply_content_renames` in `scripts/convert.sh`). This creates a **new inode**
-for each converted file. Git's assume-unchanged flag is **per-inode**, so the
-old flag doesn't carry over:
+Git stores the assume-unchanged bit in the index, not in the committed tree.
+After a rebase, branch switch, checkout, or file replacement, paths that should
+be hidden can become visible again. Re-running `--setup` re-evaluates the current
+worktree against converted `HEAD` content and re-marks only paths that still
+match the conversion exactly.
 
-- **After `--setup`**: the main loop catches files still at `H`. Then a
-  verification pass (`git status --porcelain`) force-marks any dirty converted
-  file that slipped through - this is what catches the inode-flipped files.
-- **After a rebase or branch switch**: git may drop the flag even when the file
-  content matches the conversion (because the committed blob SHA changed).
-  `--setup` re-applies the flag in both passes.
-- **After `git checkout <file>`**: git may re-mark files as assume-unchanged
-  (including `OUR_FILES`). The `--setup` loop unmarks OUR_FILES first.
+If you edit a transformed upstream file for a real feature, it no longer matches
+the converted `HEAD` bytes. `--setup` leaves that path visible and warns:
+`Not marking non-conversion change: <path>`.
 
 ### How an AI agent evaluates assume-unchanged state
 
 After a rebase or merge, the AI should verify and fix assume-unchanged state
-before yielding.  The logic:
+before yielding. The logic:
 
 1. **Run `git status`.** If clean, done. If dirty, proceed.
-2. **Run `git ls-files -v | grep '^h'`** - see what's already marked.
-3. **Run `git ls-files -v | grep '^H' | grep -E '\.(md|py|sh|yml|yaml|json|toml|html|cff|txt)$'`** - see converted files that lost the flag.
-4. **Cross-check against OUR_FILES** (`scripts/convert.sh` lines 80-85). If the
-   `H` file is one of ours (e.g. `FORK_MAINTENANCE.md`), it should stay `H` -
-   that's expected. If the `H` file is a converted file, the flag needs fixing.
-5. **Run `bash scripts/convert.sh --setup`** - this does both passes (main +
-   verification) and handles the OUR_FILES unmarking.
-6. **Re-check `git status`.** If any converted files still show as modified,
-   they have a new inode that the verification pass missed.  Run
-   `git update-index --assume-unchanged <path>` for each one.
-7. **If `git status` is now clean**, done. If not (e.g. our own files,
-   staged changes, untracked files), those are real changes to handle normally.
+2. **Run `bash scripts/convert.sh --setup`.** This re-applies conversion,
+   re-marks expected conversions, unmarks stale non-conversion lowercase-`h`
+   paths, and fails loudly if a fork-owned file is hidden.
+3. **Re-check `git status`.** If clean, done.
+4. **If a fork-owned file caused failure**, unmark it explicitly:
 
-A stale `convert.sh --setup` leaves a non-rebasing AI in a state where every
-upstream pull produces a messy `git status`.  The fix is always one of:
-`--setup` (flag dropped by rebase) or `git update-index --assume-unchanged`
-(inode mismatch from content edit).
+   ```bash
+   git update-index --no-assume-unchanged <path>
+   ```
+
+   Then rerun `bash scripts/convert.sh --setup`.
+5. **If non-conversion changes remain visible**, handle them normally. They are
+   real worktree changes, not ephemeral conversion noise.
 
 Useful commands:
 
@@ -119,14 +127,12 @@ Useful commands:
 # See which files are marked assume-unchanged
 git ls-files -v | grep '^h'
 
-# See which files should be marked but aren't (inode mismatch)
-git ls-files -v | grep '^H' | grep -E '\.(md|py|sh|yml|yaml|json|toml|html|cff|txt)$'
-
 # Unmark a single file temporarily
 git update-index --no-assume-unchanged <path>
 
 # Force git to re-check all assume-unchanged files
 git update-index --really-refresh
+```
 
 ## Gitignore
 
@@ -137,24 +143,37 @@ references/agents-md-*.md
 examples/sample-vault/_AGENTS.md
 ```
 
-These are regenerated by `bash scripts/convert.sh --setup` and never committed. Conversely, `assume-unchanged` handles tracked files that were modified in-place or renamed-away.
+These are regenerated by `bash scripts/convert.sh --setup` and never committed.
+`assume-unchanged` handles only tracked files whose worktree state exactly
+matches the deterministic conversion or deliberate rename-source deletion.
 
-## Adding a new file to the assume-unchanged set
+## Adding a new conversion target
 
-Tracked files matching extensions `.md`, `.py`, `.sh`, `.yml`, `.yaml`, `.json`, `.toml`, `.html`, `.cff`, `.txt` are included. If upstream adds a new file with an unlisted extension, add it to the `case "$ext"` block in `scripts/convert.sh`'s `setup_git_assume_unchanged()`.
+Do not broaden assume-unchanged by extension. Add the source text or rename to
+`scripts/convert.sh`, then make the deterministic conversion check recognize
+the resulting path. A path should be marked only when its worktree state can be
+derived from the committed `HEAD` blob or from a deliberate tracked source
+rename.
 
 ## Editing our own files
 
-Our fork-owned files (`scripts/convert.sh`, `adapters/omp/adapter.sh`, `scripts/setup.sh`, `FORK_*.md`) are in the `OUR_FILES` array in `scripts/convert.sh` and are **not** marked assume-unchanged. Edits to them should appear in `git diff` immediately.
+Fork-owned files are the paths listed in **Files we own (committed)**. They are
+also listed in `scripts/convert.sh`'s `OUR_FILES` array and must never be marked
+assume-unchanged.
 
-**If changes don't appear in `git diff` or `git status`:** the file is accidentally assume-unchanged. Unmark it:
+**If changes don't appear in `git diff` or `git status`:** the file is
+accidentally assume-unchanged. Unmark it:
 
 ```bash
 git update-index --no-assume-unchanged <path>
 ```
-Then stage, commit, re-run `bash scripts/convert.sh --setup`.
+Then stage and commit normally. Before yielding, run
+`bash scripts/convert.sh --setup` so expected conversion outputs are hidden
+again.
 
-**Caveat:** After a `git checkout` (switching branches, restoring a file), git may re-mark some files as assume-unchanged. Always verify with `git status` before committing. If your FORK_MAINTENANCE.md or convert.sh edits are missing from the final diff, this is almost certainly why - check `git ls-files -v | grep '^h'` for unexpectedly marked files.
+**Caveat:** After a checkout, branch switch, or restore, always verify with
+`git status` before committing. If fork-owned edits are missing from the final
+diff, check `git ls-files -v | grep '^h'` for unexpectedly marked files.
 
 ## When things conflict
 

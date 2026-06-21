@@ -26,15 +26,25 @@ Our goal: make the project **platform-neutral** and add first-class **OMP** supp
 
 ## assume-unchanged trap
 
-The conversion marks 85+ ephemeral files as `git assume-unchanged` so they never show up in `git status`. **Our own files (`scripts/convert.sh`, `adapters/omp/adapter.sh`, `scripts/setup.sh`, `FORK_*.md`) are explicitly excluded from assume-unchanged** - they're in the `OUR_FILES` array in `convert.sh`.
+`scripts/convert.sh --setup` marks only deterministic conversion outputs as
+`git assume-unchanged`: files whose worktree bytes match converted `HEAD`
+content, plus tracked source paths from deliberate renames/deletions.
 
-**If you edit any file and git doesn't see the change**, it's probably assume-unchanged. Run:
+Fork-owned files are protected by `OUR_FILES` in `scripts/convert.sh`:
+`.gitignore`, `AGENTS.md`, `FORK_MAINTENANCE.md`, `FORK_TODO.md`,
+`adapters/omp/adapter.sh`, `commands/obsidian-distill.md`, `install.sh`,
+`scripts/__init__.py`, `scripts/build.sh`, `scripts/convert.sh`, and
+`scripts/setup.sh`.
+
+If any fork-owned file is accidentally marked assume-unchanged, `--setup` fails
+before converting content. Unmark it:
 
 ```bash
 git update-index --no-assume-unchanged <path>
 ```
 
-Then stage and commit normally. After committing, re-run `bash scripts/convert.sh --setup` to refresh the assume-unchanged marks on ephemeral files.
+Then stage and commit normally. After committing, re-run
+`bash scripts/convert.sh --setup` to refresh only the expected conversion marks.
 
 ## Workflow
 

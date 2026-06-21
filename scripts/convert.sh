@@ -35,9 +35,10 @@ WARNINGS=0
 # ── File type filters ─────────────────────────────────────────────────────────
 EXTENSIONS='\.(md|py|sh|yml|yaml|json|toml|html|cff|txt)$'
 
-declare -a PATTERNS=(
+# Literal content replacements. Keep these as plain strings, not regexes.
+declare -a CONTENT_REPLACEMENTS=(
   # File references - _CLAUDE.md → _AGENTS.md
-  '_CLAUDE\.md:_AGENTS.md'
+  '_CLAUDE.md:_AGENTS.md'
   # Preamble header - ## For future Claude → ## Synopsis
   '## For future Claude:## Synopsis'
   # future-Claude (hyphenated, lowercase) → future agent
@@ -78,11 +79,17 @@ declare -a TEMPLATE_REFS=(
 
 # ── Files to exclude from assume-unchanged (our additions) ────────────────────
 declare -a OUR_FILES=(
+  '.gitignore'
+  'AGENTS.md'
+  'FORK_MAINTENANCE.md'
+  'FORK_TODO.md'
   'adapters/omp/adapter.sh'
+  'commands/obsidian-distill.md'
+  'install.sh'
+  'scripts/__init__.py'
+  'scripts/build.sh'
   'scripts/convert.sh'
   'scripts/setup.sh'
-  'FORK_MAINTENANCE.md'
-  'commands/obsidian-distill.md'
 )
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
@@ -90,8 +97,194 @@ declare -a OUR_FILES=(
 # Files that belong to us (not upstream transforms) should NOT be assume-unchanged
 is_our_file() {
   local rel="$1"
+  local f
   for f in "${OUR_FILES[@]}"; do
     [[ "$rel" == "$f" ]] && return 0
+  done
+  return 1
+}
+
+assert_no_hidden_our_files() {
+  local hidden=()
+  local f flags
+
+  for f in "${OUR_FILES[@]}"; do
+    flags=$(git -C "$REPO_ROOT" ls-files -v -- "$f" 2>/dev/null || true)
+    if [[ -n "$flags" && "${flags:0:1}" == "h" ]]; then
+      hidden+=("$f")
+    fi
+  done
+
+  if [[ ${#hidden[@]} -gt 0 ]]; then
+    warn "Fork-owned files are assume-unchanged:"
+    for f in "${hidden[@]}"; do
+      warn "  $f"
+    done
+    die "Run: git update-index --no-assume-unchanged <path>"
+  fi
+}
+
+is_tracked_path() {
+  git -C "$REPO_ROOT" ls-files --error-unmatch -- "$1" >/dev/null 2>&1
+}
+
+replace_literal_in_file() {
+  local path="$1"
+  local old="$2"
+  local new="$3"
+
+  python3 - "$path" "$old" "$new" <<'PY'
+import sys
+
+path, old, new = sys.argv[1:]
+with open(path, "r", encoding="utf-8", newline="") as handle:
+    data = handle.read()
+data = data.replace(old, new)
+with open(path, "w", encoding="utf-8", newline="") as handle:
+    handle.write(data)
+PY
+}
+
+apply_literal_replacements() {
+  local path="$1"
+  local entry old new
+
+  for entry in "${CONTENT_REPLACEMENTS[@]}"; do
+    old="${entry%%:*}"
+    new="${entry#*:}"
+    replace_literal_in_file "$path" "$old" "$new"
+  done
+
+  for entry in "${REPO_PATH_PATTERNS[@]}"; do
+    old="${entry%%:*}"
+    new="${entry#*:}"
+    replace_literal_in_file "$path" "$old" "$new"
+  done
+
+  for entry in "${TEMPLATE_REFS[@]}"; do
+    old="${entry%%:*}"
+    new="${entry#*:}"
+    replace_literal_in_file "$path" "$old" "$new"
+  done
+}
+
+make_converted_temp() {
+  local path="$1"
+  local tmp
+  tmp=$(mktemp)
+  cp "$path" "$tmp"
+  apply_literal_replacements "$tmp"
+
+  if cmp -s "$tmp" "$path"; then
+    rm -f "$tmp"
+    return 1
+  fi
+
+  printf '%s\n' "$tmp"
+}
+
+atomic_replace_file() {
+  local src="$1"
+  local dst="$2"
+
+  python3 - "$src" "$dst" <<'PY'
+import os
+import shutil
+import sys
+import tempfile
+
+src, dst = sys.argv[1:]
+directory = os.path.dirname(dst) or "."
+fd, tmp = tempfile.mkstemp(prefix=f".{os.path.basename(dst)}.", dir=directory)
+os.close(fd)
+try:
+    shutil.copyfile(src, tmp)
+    shutil.copystat(dst, tmp)
+    os.replace(tmp, dst)
+except Exception:
+    try:
+        os.unlink(tmp)
+    except FileNotFoundError:
+        pass
+    raise
+PY
+}
+
+rename_destination_for_source() {
+  local rel="$1"
+  local entry src dst
+
+  for entry in "${TEMPLATE_RENAMES[@]}"; do
+    src="${entry%%:*}"
+    dst="${entry#*:}"
+    if [[ "$rel" == "$src" ]]; then
+      printf '%s\n' "$dst"
+      return 0
+    fi
+  done
+
+  if [[ "$rel" == "examples/sample-vault/_CLAUDE.md" ]]; then
+    printf '%s\n' "examples/sample-vault/_AGENTS.md"
+    return 0
+  fi
+
+  return 1
+}
+
+path_is_expected_conversion() {
+  local rel="$1"
+  local dst head_tmp converted_tmp rc
+
+  is_our_file "$rel" && return 1
+  is_tracked_path "$rel" || return 1
+
+  if dst=$(rename_destination_for_source "$rel"); then
+    [[ ! -e "$REPO_ROOT/$rel" && -e "$REPO_ROOT/$dst" ]] && return 0
+    return 1
+  fi
+
+  [[ -f "$REPO_ROOT/$rel" ]] || return 1
+
+  head_tmp=$(mktemp)
+  if ! git -C "$REPO_ROOT" show "HEAD:$rel" >"$head_tmp" 2>/dev/null; then
+    rm -f "$head_tmp"
+    return 1
+  fi
+
+  if converted_tmp=$(make_converted_temp "$head_tmp"); then
+    if cmp -s "$converted_tmp" "$REPO_ROOT/$rel"; then
+      rc=0
+    else
+      rc=1
+    fi
+    rm -f "$converted_tmp" "$head_tmp"
+    return "$rc"
+  fi
+
+  rm -f "$head_tmp"
+  return 1
+}
+
+add_unique_candidate() {
+  local list_name="$1"
+  local candidate="$2"
+  local existing count i
+  eval "count=\${#${list_name}[@]}"
+  i=0
+  while [[ "$i" -lt "$count" ]]; do
+    eval "existing=\${${list_name}[$i]}"
+    [[ "$existing" == "$candidate" ]] && return 0
+    i=$((i + 1))
+  done
+  eval "${list_name}+=(\"\$candidate\")"
+}
+
+path_in_list() {
+  local needle="$1"
+  shift
+  local item
+  for item in "$@"; do
+    [[ "$item" == "$needle" ]] && return 0
   done
   return 1
 }
@@ -134,25 +327,16 @@ status_check() {
 # ── Mode: dry-run / apply ──────────────────────────────────────────────────────
 
 apply_content_renames() {
-  local f
-  local tmp
-  tmp=$(mktemp)
+  local f ext rel converted_tmp
 
-  find "$REPO_ROOT" \
-    -path "$REPO_ROOT/.git" -prune -o \
-    -path "$REPO_ROOT/.venv" -prune -o \
-    -path "$REPO_ROOT/dist" -prune -o \
-    -path "$REPO_ROOT/scripts/convert.sh" -prune -o \
-    -type f -print \
-    | while read -r f; do
-
-    local ext="${f##*.}"
+  while IFS= read -r f; do
+    ext="${f##*.}"
     case "$ext" in
       md|py|sh|yml|yaml|json|toml|html|cff|txt|rb|go|rs) ;;
       *) continue ;;
     esac
 
-    local rel="${f#$REPO_ROOT/}"
+    rel="${f#$REPO_ROOT/}"
     case "$rel" in
       CLAUDE.md)            continue ;;
       FORK_MAINTENANCE.md)  continue ;;
@@ -162,64 +346,37 @@ apply_content_renames() {
       *) ;;
     esac
 
-    local dirty=0
-    cp "$f" "$tmp"
-
-    for entry in "${PATTERNS[@]}"; do
-      local old="${entry%%:*}"
-      local new="${entry##*:}"
-      if grep -q "$old" "$tmp" 2>/dev/null; then
-        if [[ "$MODE" == "--apply" ]] || [[ "$MODE" == "--setup" ]]; then
-          sed -i '' "s|$old|$new|g" "$tmp" 2>/dev/null || true
-        fi
-        dirty=1
-      fi
-    done
-
-    for entry in "${REPO_PATH_PATTERNS[@]}"; do
-      local old="${entry%%:*}"
-      local new="${entry##*:}"
-      if grep -qF "$old" "$tmp" 2>/dev/null; then
-        if [[ "$MODE" == "--apply" ]] || [[ "$MODE" == "--setup" ]]; then
-          sed -i '' "s|$old|$new|g" "$tmp" 2>/dev/null || true
-        fi
-        dirty=1
-      fi
-    done
-
-    for entry in "${TEMPLATE_REFS[@]}"; do
-      local old="${entry%%:*}"
-      local new="${entry##*:}"
-      if grep -q "$old" "$tmp" 2>/dev/null; then
-        if [[ "$MODE" == "--apply" ]] || [[ "$MODE" == "--setup" ]]; then
-          sed -i '' "s|$old|$new|g" "$tmp" 2>/dev/null || true
-        fi
-        dirty=1
-      fi
-    done
-
-    if [[ $dirty -eq 1 ]]; then
+    if converted_tmp=$(make_converted_temp "$f"); then
       if [[ "$MODE" == "--apply" ]] || [[ "$MODE" == "--setup" ]]; then
-        cp "$tmp" "$f"
+        atomic_replace_file "$converted_tmp" "$f"
       fi
+      rm -f "$converted_tmp"
       echo "  $rel"
       CHANGED=$((CHANGED + 1))
     fi
-  done
-
-  rm -f "$tmp"
+  done < <(
+    find "$REPO_ROOT" \
+      -path "$REPO_ROOT/.git" -prune -o \
+      -path "$REPO_ROOT/.venv" -prune -o \
+      -path "$REPO_ROOT/dist" -prune -o \
+      -path "$REPO_ROOT/scripts/convert.sh" -prune -o \
+      -type f -print
+  )
 }
 
 apply_template_renames() {
+  local entry src dst rel_src rel_dst
   for entry in "${TEMPLATE_RENAMES[@]}"; do
-    local src="$REPO_ROOT/${entry%%:*}"
-    local dst="$REPO_ROOT/${entry##*:}"
+    rel_src="${entry%%:*}"
+    rel_dst="${entry#*:}"
+    src="$REPO_ROOT/$rel_src"
+    dst="$REPO_ROOT/$rel_dst"
     if [[ -f "$src" ]]; then
       if [[ "$MODE" == "--apply" ]] || [[ "$MODE" == "--setup" ]]; then
         mkdir -p "$(dirname "$dst")"
         mv "$src" "$dst"
       fi
-      echo "  ${entry%%:*} -> ${entry##*:}"
+      echo "  $rel_src -> $rel_dst"
       CHANGED=$((CHANGED + 1))
     fi
   done
@@ -239,71 +396,72 @@ apply_example_rename() {
 
 setup_git_assume_unchanged() {
   info "Setting up git assume-unchanged for converted files..."
-  local count=0 f flags ext
+  assert_no_hidden_our_files
 
-  local -a tracked=()
-  while IFS= read -r f; do tracked+=("$f"); done < <(git -C "$REPO_ROOT" ls-files)
-  # First, unmark any of our own files that are accidentally assume-unchanged
-  local unmark_count=0
-  for f in "${tracked[@]}"; do
-    is_our_file "$f" || continue
-    flags=$(git -C "$REPO_ROOT" ls-files -v "$f" 2>/dev/null)
-    if [[ "${flags:0:1}" == "h" ]]; then
-      git -C "$REPO_ROOT" update-index --no-assume-unchanged "$f"
-      unmark_count=$((unmark_count + 1))
-    fi
-  done
-  if [[ $unmark_count -gt 0 ]]; then
-    warn "Unmarked $unmark_count fork-owned files that were accidentally assume-unchanged."
-  fi
+  local entry flag path state rel_src count=0 stale=0 missing=0
+  local -a candidates=()
+  local -a status_candidates=()
 
-  # Then mark all converted files as assume-unchanged
-  local count=0
-  for f in "${tracked[@]}"; do
-    is_our_file "$f" && continue
-
-    ext="${f##*.}"
-    case "$ext" in
-      md|py|sh|yml|yaml|json|toml|html|cff|txt) ;;
-      *) continue ;;
-    esac
-
-    flags=$(git -C "$REPO_ROOT" ls-files -v "$f" 2>/dev/null)
-    [[ "${flags:0:1}" == "h" ]] && continue
-
-    git -C "$REPO_ROOT" update-index --assume-unchanged "$f"
-    count=$((count + 1))
-  done
-
-  info "Marked $count files as assume-unchanged."
-
-  # Verification pass: after sed+cp in apply_content_renames, converted files
-  # got new inodes and the assume-unchanged flag was dropped.  Catch stragglers
-  # via `git status --porcelain`: any modified file with a convertible extension
-  # that is NOT one of OUR_FILES should be assume-unchanged.  Force-mark it.
-  local stragglers=0
-  while IFS= read -r line; do
-    local state="${line:0:2}"
-    local path="${line:3}"
-    # Strip leading/trailing quotes if present from git status output
-    if [[ "$path" =~ ^\"(.*)\"$ ]]; then
-      path="${BASH_REMATCH[1]}"
-    fi
-    # Only care about tracked modified/deleted files (having M or D in status)
-    [[ "$state" =~ (M|D) ]] || continue
+  while IFS= read -r -d '' entry; do
+    flag="${entry:0:1}"
+    path="${entry:2}"
+    [[ "$flag" == "h" ]] || continue
     is_our_file "$path" && continue
-    ext="${path##*.}"
-    case "$ext" in
-      md|py|sh|yml|yaml|json|toml|html|cff|txt) ;;
-      *) continue ;;
-    esac
-    git -C "$REPO_ROOT" update-index --assume-unchanged "$path"
-    stragglers=$((stragglers + 1))
-  done < <(git -C "$REPO_ROOT" -c core.quotepath=false status --porcelain 2>/dev/null)
 
-  if [[ $stragglers -gt 0 ]]; then
-    warn "Verification pass: force-marked $stragglers converted file(s) with new inodes."
+    if path_is_expected_conversion "$path"; then
+      add_unique_candidate candidates "$path"
+    else
+      git -C "$REPO_ROOT" update-index --no-assume-unchanged "$path"
+      warn "Unmarked non-conversion assume-unchanged path: $path"
+      stale=$((stale + 1))
+    fi
+  done < <(git -C "$REPO_ROOT" -c core.quotepath=false ls-files -z -v)
+
+  while IFS= read -r -d '' entry; do
+    state="${entry:0:2}"
+    path="${entry:3}"
+    [[ "$state" == *M* || "$state" == *D* ]] || continue
+    add_unique_candidate candidates "$path"
+    add_unique_candidate status_candidates "$path"
+  done < <(git -C "$REPO_ROOT" -c core.quotepath=false status --porcelain -z)
+
+  for entry in "${TEMPLATE_RENAMES[@]}"; do
+    rel_src="${entry%%:*}"
+    add_unique_candidate candidates "$rel_src"
+  done
+  add_unique_candidate candidates "examples/sample-vault/_CLAUDE.md"
+
+  for path in "${candidates[@]}"; do
+    is_our_file "$path" && continue
+    if path_is_expected_conversion "$path"; then
+      flag=$(git -C "$REPO_ROOT" ls-files -v -- "$path" 2>/dev/null || true)
+      if [[ -n "$flag" && "${flag:0:1}" != "h" ]]; then
+        git -C "$REPO_ROOT" update-index --assume-unchanged "$path"
+        count=$((count + 1))
+      fi
+    elif [[ "${#status_candidates[@]}" -gt 0 ]] && path_in_list "$path" "${status_candidates[@]}"; then
+      warn "Not marking non-conversion change: $path"
+    fi
+  done
+
+  assert_no_hidden_our_files
+
+  while IFS= read -r -d '' entry; do
+    state="${entry:0:2}"
+    path="${entry:3}"
+    [[ "$state" == *M* || "$state" == *D* ]] || continue
+    is_our_file "$path" && continue
+    if path_is_expected_conversion "$path"; then
+      warn "Expected conversion was not marked assume-unchanged: $path"
+      missing=$((missing + 1))
+    fi
+  done < <(git -C "$REPO_ROOT" -c core.quotepath=false status --porcelain -z)
+
+  if [[ $missing -gt 0 ]]; then
+    die "Expected converted paths remain visible after assume-unchanged setup."
   fi
+
+  info "Marked $count converted file(s) as assume-unchanged."
 }
 
 # ── Main ───────────────────────────────────────────────────────────────────────
@@ -315,6 +473,7 @@ case "$MODE" in
     ;;
 
   --setup)
+    assert_no_hidden_our_files
     MODE="--apply"
     apply_content_renames
     apply_template_renames
