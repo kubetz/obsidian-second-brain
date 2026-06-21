@@ -164,9 +164,8 @@ Dropped from scope. If revisited, follow the OMP adapter pattern (`adapters/omp/
 
 ## Future: OMP Meta-skill for Conversion Workflow
 
-Not created - the three artifacts cover it:
-- `scripts/convert.sh` - executable
-- `FORK_MAINTENANCE.md` - docs
-- `convert.sh --setup` - git assume-unchanged wiring
+Not created - the dist-only workflow is covered by:
+- `scripts/convert.sh` - optional dist neutralizer
+- `FORK_MAINTENANCE.md` - build + convert workflow docs
 
-The OMP adapter already copies `scripts/` and `references/` into the dist tree, so `convert.sh` ships with every OMP build.
+The OMP adapter copies `scripts/` and `references/` into the dist tree, so `convert.sh` ships with every OMP build.

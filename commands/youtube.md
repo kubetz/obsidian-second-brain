@@ -8,7 +8,7 @@ Use the obsidian-second-brain skill. Execute `/youtube [url]`:
 
 1. Resolve the YouTube URL or video ID from the user's argument. Accept any of: full URL (`https://www.youtube.com/watch?v=...`), `https://youtu.be/...`, `https://www.youtube.com/shorts/...`, or just the 11-character video ID. If no input given, ask: "Which YouTube video?"
 
-2. Run the Python research command:
+2. Run the Python command from the repo root (`~/Projects/personal/obsidian-second-brain/`):
    ```bash
    uv run -m scripts.research.youtube_extract "<url-or-id>"
    ```
@@ -31,6 +31,6 @@ Use the obsidian-second-brain skill. Execute `/youtube [url]`:
 
 ---
 
-**AI-first rule:** Every note created or updated by this command MUST follow `references/ai-first-rules.md` - `## Synopsis` preamble, rich frontmatter (`type`, `date`, `tags`, `ai-first: true`, plus type-specific fields), recency markers per external claim, mandatory `[[wikilinks]]` for every person/project/concept referenced, sources preserved verbatim with URLs inline, and confidence levels where applicable. The vault is for future agent retrieval - not human reading.
+**AI-first rule:** Every note created or updated by this command MUST follow `references/ai-first-rules.md` - `## For future Claude` preamble, rich frontmatter (`type`, `date`, `tags`, `ai-first: true`, plus type-specific fields), recency markers per external claim, mandatory `[[wikilinks]]` for every person/project/concept referenced, sources preserved verbatim with URLs inline, and confidence levels where applicable. The vault is for future-Claude retrieval - not human reading.
 
 **Anti-fabrication:** Search exhaustively before claiming any note, person, or file is absent - false absence is the most common failure mode - and never invent facts, entities, or dates (mark unknowns as `TBD`). See the anti-fabrication and search-completeness hard rules in `references/ai-first-rules.md`.

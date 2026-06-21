@@ -65,7 +65,7 @@ Create `Research/Conversations/YYYY-MM-DD - <file_title>.md` with:
   ---
   ```
 
-- `## Synopsis` - 2-3 sentences describing what was preserved, why it matters, and whether the transcript is full or excerpted.
+- `## For future Claude` - 2-3 sentences describing what was preserved, why it matters, and whether the transcript is full or excerpted.
 - The minimum verbatim source needed to verify the extracted knowledge:
   - For `full-conversation`, include every user and assistant turn.
   - For `selected-excerpts` or `single-thread`, include only relevant teaching, ideation, decision, troubleshooting, context-setting, and output-producing turns.
@@ -96,7 +96,7 @@ If the conversation produced substantive written output (a draft, a design doc, 
 - **Code** - `Code/` or `Projects/<Project>/`
 - **Design decisions** - `Projects/<Project>/` or `Knowledge/ADRs/`
 
-Use your judgment. The key rule: the source transcript is the evidence; anything extracted here is a finished artifact someone (or a future agent) could use directly without reading the conversation.
+Use your judgment. The key rule: the source transcript is the evidence; anything extracted here is a finished artifact someone (or future Claude) could use directly without reading the conversation.
 
 ### Step 3 - Extract structured knowledge or insights
 
@@ -128,7 +128,7 @@ Rules (apply to all types):
   ---
   ```
 
-- `## Synopsis` is mandatory and must state what the note covers, why it matters, and any scope or staleness caveat.
+- `## For future Claude` is mandatory and must state what the note covers, why it matters, and any scope or staleness caveat.
 - Synthesize. Do NOT just re-list the conversation blocks.
 - Every substantive claim, idea, decision, or example should trace back to a path-qualified source block link like `[[Research/Conversations/YYYY-MM-DD - <file_title>#^<slug>-a-N]]` or `[[Research/Conversations/YYYY-MM-DD - <file_title>#^<slug>-u-N]]` so it resolves from extracted notes and can be verified against the source transcript.
 - Block references prove provenance only: they show what the conversation said. They do not prove external factual truth.
@@ -160,7 +160,7 @@ ai-first: true
 ```
 
 Include:
-- `## Synopsis` - what this syllabus teaches, who it is for, and what source it came from.
+- `## For future Claude` - what this syllabus teaches, who it is for, and what source it came from.
 - The recommended teaching order for someone else to follow.
 - Prerequisites and dependencies between subtopics.
 - For each module: link to the Knowledge note, estimated complexity, and key block IDs from the source transcript.
@@ -175,7 +175,7 @@ If the teaching is a single focused concept, do not create a syllabus. Add `## L
   - If only 1-3 notes were created and no domain index exists, adding entries directly under `## Knowledge/<Domain>/` in root `index.md` is acceptable.
   - Root `index.md` should prefer linking domain indexes over listing every leaf note forever.
 - Append to `Logs/YYYY-MM-DD.md` with a summary line.
-- If `Knowledge/<Domain>/` is not yet in `_AGENTS.md`'s Folder Map, add a row: `Knowledge/<Domain>/` - <short description>.
+- If `Knowledge/<Domain>/` is not yet in `_CLAUDE.md`'s Folder Map, add a row: `Knowledge/<Domain>/` - <short description>.
 
 ### Verification checklist
 
@@ -192,13 +192,13 @@ If the teaching is a single focused concept, do not create a syllabus. Add `## L
 - [ ] `Daily/YYYY-MM-DD.md` - links to everything created today.
 - [ ] `Logs/YYYY-MM-DD.md` - operation log entry.
 - [ ] `index.md` and/or `Knowledge/<Domain>/index.md` updated without root-index pollution.
-- [ ] `_AGENTS.md` updated (if `Knowledge/<Domain>/` is not yet in Folder Map).
+- [ ] `_CLAUDE.md` updated (if `Knowledge/<Domain>/` is not yet in Folder Map).
 - [ ] Every source block link (`[[Research/Conversations/YYYY-MM-DD - <file_title>#^<slug>-a-N]]` or `...#^<slug>-u-N]]`) resolves to an existing block ID in the source transcript.
 
 If any of these is missing or wrong, fix it before finishing.
 
 ---
 
-**AI-first rule:** Every note created or updated by this command MUST follow `references/ai-first-rules.md` - `## Synopsis` preamble, rich frontmatter (`type`, `date`, `tags`, `ai-first: true`, plus type-specific fields), recency markers per external claim, mandatory `[[wikilinks]]` for every person/project/concept referenced, sources preserved verbatim with URLs inline, and confidence levels where applicable. The vault is for future agent retrieval - not human reading.
+**AI-first rule:** Every note created or updated by this command MUST follow `references/ai-first-rules.md` - `## For future Claude` preamble, rich frontmatter (`type`, `date`, `tags`, `ai-first: true`, plus type-specific fields), recency markers per external claim, mandatory `[[wikilinks]]` for every person/project/concept referenced, sources preserved verbatim with URLs inline, and confidence levels where applicable. The vault is for future-Claude retrieval - not human reading.
 
 **Anti-fabrication:** Search exhaustively before claiming any note, person, or file is absent - false absence is the most common failure mode - and never invent facts, entities, or dates (mark unknowns as `TBD`). See the anti-fabrication and search-completeness hard rules in `references/ai-first-rules.md`.

@@ -116,7 +116,7 @@ Use the obsidian-second-brain skill. Execute `/<name> $ARGUMENTS`:
 
 <one-sentence framing tying the user's intent (Phase 1) to the action>
 
-1. Read `_AGENTS.md` first if it exists in the vault root
+1. Read `_CLAUDE.md` first if it exists in the vault root
 2. <step from Phase 5, step 1>
 3. <step from Phase 5, step 2>
 4. <step from Phase 5, step 3>
@@ -128,7 +128,7 @@ Use the obsidian-second-brain skill. Execute `/<name> $ARGUMENTS`:
 ---
 
 <AI-first footer ONLY if Phase 6 = yes>
-**AI-first rule:** Every note created or updated by this command MUST follow `references/ai-first-rules.md` — `## Synopsis` preamble, rich frontmatter (`type`, `date`, `tags`, `ai-first: true`, plus type-specific fields), recency markers per external claim, mandatory `[[wikilinks]]` for every person/project/concept referenced, sources preserved verbatim with URLs inline, and confidence levels where applicable. The vault is for future agent retrieval — not human reading.
+**AI-first rule:** Every note created or updated by this command MUST follow `references/ai-first-rules.md` — `## For future Claude` preamble, rich frontmatter (`type`, `date`, `tags`, `ai-first: true`, plus type-specific fields), recency markers per external claim, mandatory `[[wikilinks]]` for every person/project/concept referenced, sources preserved verbatim with URLs inline, and confidence levels where applicable. The vault is for future-Claude retrieval — not human reading.
 ```
 
 Write the file to `commands/<name>.md` using the Write tool.
@@ -151,4 +151,4 @@ If the new command writes to the vault and the user has the validate-ai-first ho
 
 ---
 
-**Note for future agent:** This is a command that creates commands. Do not run it recursively on itself. Do not rewrite this file when invoked - write a NEW `commands/<name>.md` based on the interview.
+**Note for future-Claude:** This is a command that creates commands. Do not run it recursively on itself. Do not rewrite this file when invoked - write a NEW `commands/<name>.md` based on the interview.

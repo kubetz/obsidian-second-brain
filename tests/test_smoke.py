@@ -66,6 +66,40 @@ def test_dist_only_neutralization_preserves_source():
     for path in generated_source_paths:
         assert not path.exists()
 
+    initial_status = subprocess.run(
+        [
+            "git",
+            "status",
+            "--porcelain",
+            "--",
+            "commands",
+            "references",
+            "examples/sample-vault",
+        ],
+        cwd=REPO_ROOT,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    assert initial_status.returncode == 0, initial_status.stdout + initial_status.stderr
+    initial_diff = subprocess.run(
+        [
+            "git",
+            "diff",
+            "--",
+            "commands",
+            "references",
+            "examples/sample-vault",
+        ],
+        cwd=REPO_ROOT,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    assert initial_diff.returncode == 0, initial_diff.stdout + initial_diff.stderr
+
+
+
     for platform, references_dir, command_file in platform_cases:
         result = subprocess.run(
             ["bash", "scripts/build.sh", "--platform", platform],
@@ -87,7 +121,6 @@ def test_dist_only_neutralization_preserves_source():
             text=True,
         )
         assert convert.returncode == 0, convert.stdout + convert.stderr
-
 
         for path in canonical_source_paths:
             assert path.is_file()
@@ -121,7 +154,23 @@ def test_dist_only_neutralization_preserves_source():
             text=True,
         )
         assert status.returncode == 0, status.stdout + status.stderr
-        assert status.stdout == ""
+        assert status.stdout == initial_status.stdout
+        diff = subprocess.run(
+            [
+                "git",
+                "diff",
+                "--",
+                "commands",
+                "references",
+                "examples/sample-vault",
+            ],
+            cwd=REPO_ROOT,
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        assert diff.returncode == 0, diff.stdout + diff.stderr
+        assert diff.stdout == initial_diff.stdout
 
 
 def test_claude_dist_converts_only_when_requested():

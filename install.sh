@@ -205,6 +205,10 @@ fi
 # ── Common: next steps ────────────────────────────────────────────────
 echo ""
 echo "Next steps:"
-echo "  1. Run /obsidian-init to generate your vault's _AGENTS.md"
+if [ "$INSTALL_TARGET" = "omp" ]; then
+  echo "  1. Run /obsidian-init to generate your vault's _AGENTS.md"
+else
+  echo "  1. Run /obsidian-init to generate your vault's _CLAUDE.md"
+fi
 echo "  2. (If research toolkit installed) Verify keys: cat $ENV_FILE"
 echo ""

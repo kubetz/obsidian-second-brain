@@ -13,7 +13,7 @@ Use the obsidian-second-brain skill. Execute `/podcast [url]`:
 
    If no input given, ask: "Which podcast episode? Paste the Apple Podcasts link or RSS feed URL." Spotify URLs are not supported (DRM blocks audio + transcript access). Surface this clearly if pasted.
 
-2. Run the Python research command:
+2. Run the Python command from the repo root (`~/Projects/personal/obsidian-second-brain/`):
    ```bash
    uv run -m scripts.research.podcast_extract "<url>"
    ```
@@ -40,6 +40,6 @@ Use the obsidian-second-brain skill. Execute `/podcast [url]`:
 
 ---
 
-**AI-first rule:** Every note created or updated by this command MUST follow `references/ai-first-rules.md`. That means: `## Synopsis` preamble, rich frontmatter (`type`, `date`, `tags`, `ai-first: true`, plus type-specific fields), recency markers per external claim, mandatory `[[wikilinks]]` for every person/project/concept referenced, sources preserved verbatim with URLs inline, and confidence levels where applicable. The vault is for future agent retrieval, not human reading.
+**AI-first rule:** Every note created or updated by this command MUST follow `references/ai-first-rules.md`. That means: `## For future Claude` preamble, rich frontmatter (`type`, `date`, `tags`, `ai-first: true`, plus type-specific fields), recency markers per external claim, mandatory `[[wikilinks]]` for every person/project/concept referenced, sources preserved verbatim with URLs inline, and confidence levels where applicable. The vault is for future-Claude retrieval, not human reading.
 
 **Anti-fabrication:** Search exhaustively before claiming any note, person, or file is absent - false absence is the most common failure mode - and never invent facts, entities, or dates (mark unknowns as `TBD`). See the anti-fabrication and search-completeness hard rules in `references/ai-first-rules.md`.

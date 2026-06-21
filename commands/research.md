@@ -8,7 +8,7 @@ Use the obsidian-second-brain skill. Execute `/research [topic]`:
 
 1. Resolve the topic from the user's argument. Multi-word topics fine ("AI memory tools", "vector databases for RAG"). If no topic, ask: "What topic should I research?"
 
-2. Run the Python research command:
+2. Run the Python command from the repo root (`~/Projects/personal/obsidian-second-brain/`):
    ```bash
    uv run -m scripts.research.research "<topic>"
    ```
@@ -30,6 +30,6 @@ Use the obsidian-second-brain skill. Execute `/research [topic]`:
 
 ---
 
-**AI-first rule:** Every note created or updated by this command MUST follow `references/ai-first-rules.md` - `## Synopsis` preamble, rich frontmatter (`type`, `date`, `tags`, `ai-first: true`, plus type-specific fields), recency markers per external claim, mandatory `[[wikilinks]]` for every person/project/concept referenced, sources preserved verbatim with URLs inline, and confidence levels where applicable. The vault is for future agent retrieval - not human reading.
+**AI-first rule:** Every note created or updated by this command MUST follow `references/ai-first-rules.md` - `## For future Claude` preamble, rich frontmatter (`type`, `date`, `tags`, `ai-first: true`, plus type-specific fields), recency markers per external claim, mandatory `[[wikilinks]]` for every person/project/concept referenced, sources preserved verbatim with URLs inline, and confidence levels where applicable. The vault is for future-Claude retrieval - not human reading.
 
 **Anti-fabrication:** Search exhaustively before claiming any note, person, or file is absent - false absence is the most common failure mode - and never invent facts, entities, or dates (mark unknowns as `TBD`). See the anti-fabrication and search-completeness hard rules in `references/ai-first-rules.md`.

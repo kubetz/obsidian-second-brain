@@ -12,16 +12,15 @@ Do not commit neutralized source-tree files. If they appear in the source tree, 
 
 | File | Type | Notes |
 |---|---|---|
-| `.gitignore` | Modified | Ignores build output and local scratch |
 | `AGENTS.md` | New | Fork operating guide for AI agents |
 | `FORK_MAINTENANCE.md` | New | This file |
 | `FORK_TODO.md` | New | Fork task list |
 | `adapters/omp/adapter.sh` | New | Oh My Pi platform adapter |
-| `commands/obsidian-distill.md` | Modified | Fork-owned command infill |
+| `commands/obsidian-distill.md` | New | Fork-owned command infill |
 | `install.sh` | Modified | Adds OMP install target and installs from generated dist |
 | `scripts/__init__.py` | New | Package marker for `uv run -m` |
-| `scripts/build.sh` | Modified | Adds OMP platform target and post-build neutralization |
-| `scripts/convert.sh` | Modified | Dist-only neutralization helper |
+| `scripts/build.sh` | Modified | Adds OMP platform target and builds platform dist trees |
+| `scripts/convert.sh` | Modified | Optional dist-only neutralization helper |
 | `scripts/setup.sh` | Modified | Adds OMP setup and installs from generated dist |
 
 ## Dist conversion patterns
