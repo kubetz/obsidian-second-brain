@@ -6,14 +6,24 @@ SKILL_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CLAUDE_DIR="$HOME/.claude"
 COMMANDS_DIR="$CLAUDE_DIR/commands"
 SKILLS_DIR="$CLAUDE_DIR/skills"
+OMP_SKILLS_DIR="$HOME/.omp/agent/skills"
 CONFIG_DIR="$HOME/.config/obsidian-second-brain"
 ENV_FILE="$CONFIG_DIR/.env"
+INSTALL_TARGET="${1:-claude}"  # claude (default) or omp
 
 echo "Installing obsidian-second-brain..."
+
+case "$INSTALL_TARGET" in
+  claude) echo "  Target: Claude Code" ;;
+  omp)    echo "  Target: Oh My Pi (~/.omp/agent/skills/)" ;;
+  *)      echo "  Unknown target: $INSTALL_TARGET (use: claude or omp)"; exit 1 ;;
+esac
+echo ""
 
 # Create directories if needed
 mkdir -p "$COMMANDS_DIR"
 mkdir -p "$SKILLS_DIR"
+mkdir -p "$OMP_SKILLS_DIR"
 
 # Detect platform once
 case "$(uname -s)" in
@@ -21,12 +31,33 @@ case "$(uname -s)" in
   *) IS_WINDOWS=0 ;;
 esac
 
+build_platform_dist() {
+  platform="$1"
+  bash "$SKILL_DIR/scripts/build.sh" --platform "$platform"
+}
+LEGACY_COMMANDS_SRC="$SKILL_DIR"
+LEGACY_COMMANDS_SRC="$LEGACY_COMMANDS_SRC/commands"
+
+
+# ── Claude Code install ───────────────────────────────────────────────
+if [ "$INSTALL_TARGET" = "claude" ]; then
+
+build_platform_dist claude-code
+DIST_DIR="$SKILL_DIR/dist/claude-code"
+
 # Link commands into ~/.claude/commands/ (copy on Windows without Developer Mode)
 echo "Installing slash commands..."
+COMMANDS_SRC="$DIST_DIR/commands"
 COMMANDS_COPIED=0
-for file in "$SKILL_DIR/commands/"*.md; do
+for file in "$COMMANDS_SRC/"*.md; do
   name=$(basename "$file")
   dest="$COMMANDS_DIR/$name"
+  if [ -L "$dest" ]; then
+    link_target=$(readlink "$dest")
+    case "$link_target" in
+      "$LEGACY_COMMANDS_SRC/$name"|"$SKILL_DIR"/dist/*/commands/"$name") rm "$dest" ;;
+    esac
+  fi
   if [ -e "$dest" ] || [ -L "$dest" ]; then
     echo "  skipping $name (already exists)"
   elif [ "$IS_WINDOWS" -eq 0 ]; then
@@ -46,22 +77,80 @@ fi
 
 # Link skill into ~/.claude/skills/
 SKILL_LINK="$SKILLS_DIR/obsidian-second-brain"
-if [ -e "$SKILL_LINK" ]; then
+if [ -L "$SKILL_LINK" ]; then
+  link_target=$(readlink "$SKILL_LINK")
+  case "$link_target" in
+    "$SKILL_DIR"|"$SKILL_DIR"/dist/*) rm "$SKILL_LINK" ;;
+  esac
+fi
+if [ -e "$SKILL_LINK" ] || [ -L "$SKILL_LINK" ]; then
   echo "Skill already linked at $SKILL_LINK"
 elif [ "$IS_WINDOWS" -eq 0 ]; then
-  ln -s "$SKILL_DIR" "$SKILL_LINK"
+  ln -s "$DIST_DIR" "$SKILL_LINK"
   echo "Skill linked at $SKILL_LINK"
 else
-  if MSYS=winsymlinks:nativestrict ln -s "$SKILL_DIR" "$SKILL_LINK" 2>/dev/null; then
+  if MSYS=winsymlinks:nativestrict ln -s "$DIST_DIR" "$SKILL_LINK" 2>/dev/null; then
     echo "Skill linked at $SKILL_LINK"
   else
-    echo "Symlink failed (requires Developer Mode). For the cleanest setup,"
-    echo "clone the repo directly into the skills folder:"
-    echo "  git clone https://github.com/eugeniughelbur/obsidian-second-brain ~/.claude/skills/obsidian-second-brain"
-    echo "Then re-run install.sh from that location."
+    cp -R "$DIST_DIR" "$SKILL_LINK"
+    echo "Skill copied to $SKILL_LINK"
   fi
 fi
 
+echo ""
+echo "Done. Restart Claude Code to activate the commands."
+
+fi
+
+# ── Oh My Pi install ───────────────────────────────────────────────────
+if [ "$INSTALL_TARGET" = "omp" ]; then
+
+build_platform_dist omp
+DIST_DIR="$SKILL_DIR/dist/omp"
+bash "$SKILL_DIR/scripts/convert.sh" --dist "$DIST_DIR"
+
+OMP_LINK="$OMP_SKILLS_DIR/obsidian-second-brain"
+if [ -L "$OMP_LINK" ]; then
+  link_target=$(readlink "$OMP_LINK")
+  case "$link_target" in
+    "$SKILL_DIR"|"$SKILL_DIR"/dist/*) rm "$OMP_LINK" ;;
+  esac
+fi
+if [ -e "$OMP_LINK" ] || [ -L "$OMP_LINK" ]; then
+  echo "Skill already linked at $OMP_LINK"
+elif [ "$IS_WINDOWS" -eq 0 ]; then
+  ln -s "$DIST_DIR" "$OMP_LINK"
+  echo "Skill linked at $OMP_LINK"
+else
+  if MSYS=winsymlinks:nativestrict ln -s "$DIST_DIR" "$OMP_LINK" 2>/dev/null; then
+    echo "Skill linked at $OMP_LINK"
+  else
+    cp -R "$DIST_DIR" "$OMP_LINK"
+    echo "Skill copied to $OMP_LINK"
+  fi
+fi
+
+# Also symlink commands into OMP's command path
+OMP_COMMANDS_DIR="$HOME/.omp/commands"
+mkdir -p "$OMP_COMMANDS_DIR"
+for file in "$DIST_DIR/.omp/commands/"*.md; do
+  name=$(basename "$file")
+  dest="$OMP_COMMANDS_DIR/$name"
+  if [ -L "$dest" ]; then
+    link_target=$(readlink "$dest")
+    case "$link_target" in
+      "$LEGACY_COMMANDS_SRC/$name"|"$SKILL_DIR"/dist/*/.omp/commands/"$name") rm "$dest" ;;
+    esac
+  fi
+  [ -e "$dest" ] || [ -L "$dest" ] && continue
+  ln -s "$file" "$dest"
+done
+echo "Commands linked into ~/.omp/commands/"
+
+echo ""
+echo "Done. Your OMP agent will load the skill on the next session."
+
+fi
 # ── Research toolkit setup (optional) ──────────────────────────────
 echo ""
 echo "Research toolkit (optional): /x-read, /x-pulse, /research, /research-deep, /youtube"
@@ -104,7 +193,6 @@ if [[ "$setup_research" =~ ^[Yy]$ ]]; then
   echo "    YOUTUBE_API_KEY=      (https://console.cloud.google.com - optional)"
   echo ""
   read -r -p "  Press Enter to open the file in your default editor (or Ctrl+C to skip)... " _
-  # Pick a default opener if $EDITOR is unset. Original used `open` (macOS-only).
   default_editor=open
   case "$(uname -s)" in
     Linux)                default_editor=xdg-open ;;
@@ -113,9 +201,14 @@ if [[ "$setup_research" =~ ^[Yy]$ ]]; then
   ${EDITOR:-$default_editor} "$ENV_FILE"
 fi
 
-echo ""
-echo "Done. Restart Claude Code to activate the commands."
+
+# ── Common: next steps ────────────────────────────────────────────────
 echo ""
 echo "Next steps:"
-echo "  1. Run /obsidian-init to generate your vault's _CLAUDE.md"
+if [ "$INSTALL_TARGET" = "omp" ]; then
+  echo "  1. Run /obsidian-init to generate your vault's _AGENTS.md"
+else
+  echo "  1. Run /obsidian-init to generate your vault's _CLAUDE.md"
+fi
 echo "  2. (If research toolkit installed) Verify keys: cat $ENV_FILE"
+echo ""
