@@ -8,7 +8,7 @@ bug in this repo. Five separate audit findings (B3, B19, B20, S15, S23) were the
 same defect: a build that compiled cleanly, shipped, and was broken in a way
 only someone who used that platform daily would ever notice. One of them cited a
 reference path that did not exist in its own build and survived because the
-other four copies were correct.
+other builds were correct.
 
 So platform ownership is open. A platform owner is the person who would notice.
 
@@ -24,6 +24,7 @@ So platform ownership is open. A platform owner is the person who would notice.
 | grok-bot | unclaimed | |
 | hermes | unclaimed | [@Litash](https://github.com/Litash) |
 | opencode | unclaimed | [@Litash](https://github.com/Litash), [@MPZ-00](https://github.com/MPZ-00) |
+| omp | unclaimed | |
 | pi | unclaimed | |
 <!-- owners:end -->
 
@@ -54,7 +55,7 @@ cannot test them.
 ## Why a PR can land without the maintainer testing your platform
 
 Because CI checks the parts that do not need the platform installed. Every push
-compiles all seven builds and verifies four things per build: it emits a
+compiles all eight builds and verifies four things per build: it emits a
 non-empty tree, its script root resolves, every reference path it cites exists
 inside that same build, and a runnable Python project ships beside the scripts.
 The board is in the [README](../README.md#platform-conformance) and is

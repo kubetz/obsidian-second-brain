@@ -3,6 +3,11 @@
 set -e
 
 SKILL_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if [[ "${1:-}" == "omp" ]]; then
+  shift
+  exec "$SKILL_DIR/scripts/install-omp.sh" "$@"
+fi
+
 # Home for config and Claude Code state (OSB_HOME, OSB_WIN): USERPROFILE on
 # Windows shells, HOME elsewhere. See scripts/platform-home.sh.
 . "$SKILL_DIR/scripts/platform-home.sh"

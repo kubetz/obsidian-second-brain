@@ -1,8 +1,8 @@
 """Generate the GitHub Pages site from commands/, which is the only source of truth.
 
 GitHub Pages has been live and building for this repo for some time, serving the
-README from the repo root. Meanwhile `commands/` holds 46 files that each carry a
-one-line `description`, a `category`, and `triggers_en` / `triggers_es` /
+README from the repo root. Meanwhile `commands/` holds the command files, each
+carrying a one-line `description`, a `category`, and `triggers_en` / `triggers_es` /
 `triggers_pt` / `triggers_zh` arrays. Those trigger arrays are, literally, the
 sentences a person would type when they want the thing - written by hand, in four
 languages, and until now visible only to the dispatcher adapters.
@@ -40,6 +40,8 @@ CATEGORIES = [
      "Pull the outside world in, with sources and recency preserved."),
     ("meta", "Meta",
      "Set up, extend and inspect the skill itself."),
+    ("maintenance", "Maintenance",
+     "Run the vault's explicit maintenance procedures."),
 ]
 
 LANGS = [
@@ -219,13 +221,13 @@ def build(out: Path, cmds: list[dict]) -> dict[str, str]:
         # of the stars outrank this one on those queries purely by saying the
         # problem out loud. Same claims either way; only the ordering changed.
         "index.html": page(
-            "AI second brain for Obsidian - persistent memory for "
-            "Claude Code and Grok Bot",
-            "Persistent memory for Claude Code, Grok Bot, and 6 other agents - stored "
-            "as plain markdown in your Obsidian vault. Stop "
-            "re-explaining your projects, decisions and people every session. 46 "
-            "commands with triggers in English, Spanish, Portuguese "
-            "and Simplified Chinese.",
+            "Persistent memory for Claude Code, in your Obsidian vault "
+            "- obsidian-second-brain",
+            f"Give Claude Code and eight other supported platforms long-term memory "
+            f"across sessions, stored as plain markdown in your own Obsidian vault. "
+            f"Stop re-explaining your projects, decisions and people every time. "
+            f"{len(cmds)} commands, with plain-language triggers in English, Spanish, "
+            "Portuguese and Simplified Chinese.",
             render_index(cmds),
         ),
     }
