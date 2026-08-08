@@ -44,7 +44,7 @@ adapter_build() {
 
   HERMES_VERSION="$(_hermes_version "$src")"
   _hermes_emit_skills "$src/commands" "$dst/$HERMES_SKILLS_DIR"
-  _hermes_emit_blueprints "$dst/optional-skills"
+  _hermes_emit_blueprints "$src/commands" "$dst/optional-skills"
   _hermes_copy_references "$src/references" "$dst/references"
   _hermes_copy_scripts "$src/scripts" "$dst/scripts"
   _hermes_copy_hooks "$src/hooks" "$dst/hooks"
@@ -143,9 +143,10 @@ _hermes_emit_skills() {
 # optional-skills/ (NOT skills/) so INSTALL.md's bulk skills/ copy never ships
 # them implicitly - the scheduled agents are opt-in by design (the Claude side
 # ships inert and requires explicit /schedule). SKILL.md remains the canonical
-# source for the prompts. (#134)
+# source for the other scheduled prompts; obsidian-nightly uses its command body
+# so every manual and scheduled invocation shares one procedure. (#134)
 _hermes_emit_blueprints() {
-  local dst="$1"
+  local commands="$1" dst="$2"
   mkdir -p "$dst"
 
   _hermes_write_blueprint "$dst" obsidian-morning "0 8 * * *" "daily at 8:00 AM" \
@@ -155,40 +156,15 @@ Pull in any tasks from kanban boards that are due today or overdue.
 List any projects with status active that have no recent activity in the last 7 days.
 Do not ask questions - infer everything from the vault. Save and stop."
 
+  local nightly nightly_desc nightly_body
+  nightly="$commands/obsidian-nightly.md"
+  nightly_desc="$(parse_frontmatter "$nightly" description)"
+  nightly_body="$(command_body "$nightly")"
   _hermes_write_blueprint "$dst" obsidian-nightly "0 22 * * *" "daily at 10:00 PM" \
-"Sleeptime consolidation - the vault gets smarter overnight. The cron-native counterpart to the Claude PostCompact maintenance pass." \
-"Read \`_CLAUDE.md\`. This is a sleeptime consolidation pass - the vault should be smarter when the user wakes up.
-
-Phase 1 - Close the day:
-- Read today's daily note. Append a ## End of Day section with a 3-5 bullet summary.
-- Move any completed kanban tasks to Done.
-
-Phase 2 - Reconcile:
-- First resolve the entities, concepts, and decisions folders per \`references/folder-map.md\` (at the install root,
-  \`$HERMES_INSTALL_ROOT/references/folder-map.md\`): the vault's \`_CLAUDE.md\` Folder Map wins, else wiki-style
-  \`wiki/entities/\` + \`wiki/concepts/\` + \`wiki/decisions/\`, else Obsidian-style \`People/\` + \`Knowledge/\` (and \`Ideas/\`) + \`Knowledge/\`.
-  A resolved folder that does not exist is a skip, not an error. Never scan a hardcoded \`wiki/\` path on a vault with no \`wiki/\` folder -
-  unattended, that is three tool failures a night with nothing to show for them.
-- Scan the entities folder for outdated roles, companies, or descriptions that conflict with newer daily notes.
-- Scan the concepts folder for claims contradicted by recently ingested sources.
-- Flag EVERY contradiction as a \`type: conflict\` note with \`status: open\` in the decisions folder. Do NOT rewrite any existing page -
-  resolving a contradiction rewrites the outdated note, which is destructive and irreversible while the user sleeps. Leave that to an
-  interactive obsidian-reconcile run.
-
-Phase 3 - Synthesize:
-- Scan sources ingested today and yesterday. Find concepts that appear in 2+ unrelated sources.
-- If patterns found: create \`Synthesis - Title.md\` in the concepts folder resolved in Phase 2, with evidence and interpretation.
-
-Phase 4 - Heal:
-- Find notes created today with no incoming links. Add links from relevant existing pages.
-- Close entity timeline entries missing an \"until\" date that should be closed.
-- Rebuild \`index.md\` to reflect today's changes.
-
-Phase 5 - Log:
-- Append an operation-log entry: if \`Logs/\` exists write \`**HH:MM** - nightly | End of day + X flagged, Y synthesized, Z orphans linked\`
-  to \`Logs/YYYY-MM-DD.md\`; otherwise append \`## [YYYY-MM-DD] nightly | ...\` to \`log.md\`.
-
-Do not ask questions. Do not fix anything destructive - only add, update, link. Save and stop."
+    "$nightly_desc" "$nightly_body"
+  rewrite_tool_neutral "$dst/obsidian-nightly/SKILL.md"
+  rewrite_skill_root "$dst/obsidian-nightly/SKILL.md" "$HERMES_INSTALL_ROOT"
+  rewrite_platform_paths "$dst/obsidian-nightly/SKILL.md" ""
 
   _hermes_write_blueprint "$dst" obsidian-weekly "0 18 * * 5" "every Friday at 6:00 PM" \
 "Generate a weekly review note from the vault. Runs unattended on schedule." \

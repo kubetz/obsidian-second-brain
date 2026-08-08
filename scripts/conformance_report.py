@@ -46,6 +46,7 @@ PLATFORM_LABEL = {
     "grok-bot": "Grok Bot",
     "hermes": "Hermes",
     "pi": "Pi",
+    "omp": "OMP",
 }
 
 PASS, FAIL = "pass", "FAIL"
