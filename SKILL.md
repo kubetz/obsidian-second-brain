@@ -102,7 +102,7 @@ See `references/vault-schema.md` for full structural details.
 ## Core Operating Principles
 
 ### AI-first vault rule (applies to every note)
-The vault is designed for **future agent** to read and reason over, not for human review. Every note Claude writes - across all 46 commands - must follow `references/ai-first-rules.md`:
+The vault is designed for **future agent** to read and reason over, not for human review. Every note Claude writes - across all 49 commands - must follow `references/ai-first-rules.md`:
 
 1. **Self-contained context** - each note explains itself; don't rely on backlinks alone
 2. **"For future agent" preamble** - 2-3 sentence summary so any compatible agent can decide relevance in 10 seconds
@@ -871,6 +871,14 @@ Segments the source into numbered, citable blocks (`B1`, `B2`, ...), extracts th
 
 ---
 
+### `/obsidian-crystallize [conversation scope]`
+
+**Crystallize a conversation into an auditable source transcript plus source-linked durable knowledge, artifacts, and finished reusable outputs.**
+
+Use it when the user says "crystallize this conversation", "crystallize our exchange", or "crystallize what we learned". It preserves auditable user and assistant transcript blocks, then creates only the source-linked notes and artifacts that the conversation made durable.
+
+---
+
 ### `/idea-discovery`
 
 **Ranks 3-5 next-direction candidates from ungraduated ideas, open project questions, and orphan research.**
@@ -1079,6 +1087,8 @@ Setup:
 **Sleeptime consolidation - the vault gets smarter overnight.**
 
 This agent does more than close the day. It actively consolidates and improves the vault while you sleep.
+
+Run it on demand with /obsidian-nightly; scheduling remains platform-specific.
 
 Prompt to schedule:
 ```

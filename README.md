@@ -1,6 +1,6 @@
 <p align="center">
   <a href="https://github.com/eugeniughelbur/obsidian-second-brain">
-    <img src="media/banner.png" alt="obsidian-second-brain: one brain, eight platforms, 47 commands. A cross-platform skill for Obsidian that runs on Claude Code, Codex, Gemini, OpenCode, Antigravity, Hermes, Pi, and Grok Bot." width="100%" />
+    <img src="media/banner.png" alt="obsidian-second-brain: one brain, nine platforms, 49 commands. A cross-platform skill for Obsidian that runs on Claude Code, Codex CLI, Gemini CLI, OpenCode, Agent Skills, Hermes, Pi, Grok Bot, and Oh My Pi." width="100%" />
   </a>
 </p>
 
@@ -13,7 +13,7 @@
 </p>
 
 <p align="center">
-  <strong>Your vault is the memory. Claude, Grok Bot, Codex - same brain.</strong>
+  <strong>One codebase. Nine platforms. Same brain.</strong>
   <br />
   <em>Your vault outlives whichever CLI you switch to.</em>
 </p>
@@ -48,7 +48,7 @@
   <a href="#install"><strong>Install &rarr;</strong></a> &middot;
   <a href="DEMOS.md">Demos</a> &middot;
   <a href="#what-happens-when-you-install-this">See it in action</a> &middot;
-  <a href="#45-commands">All commands</a> &middot;
+  <a href="#48-commands">All commands</a> &middot;
   <a href="#choose-your-preset">Presets</a> &middot;
   <a href="#the-vault-is-alive">OKM</a> &middot;
   <a href="https://github.com/eugeniughelbur/obsidian-second-brain/discussions">Discussions</a>
@@ -264,7 +264,7 @@ Free transcript via youtube-transcript-api. Optional metadata + top comments via
   +------------------------------------------+
 ```
 
-47 commands total. The calendar command (`/obsidian-calendar`) is Claude Code only (needs the Google Calendar MCP), so the Codex / Gemini / OpenCode / Hermes / Pi / Agent Skills builds ship 46.
+49 commands total. The calendar command (`/obsidian-calendar`) is Claude Code only (needs the Google Calendar MCP), so the non-calendar generic builds ship 48 commands (Hermes ships 47 command skills plus the opt-in scheduled nightly blueprint); OMP excludes both calendar and the source-authoring `/create-command`, so it installs 47 command/skill pairs.
 
 **Layer 1** saves, organizes, ingests, reconciles, exports, schedules your calendar, and maintains your vault.
 **Layer 2** challenges your ideas, surfaces hidden patterns, bridges unrelated domains, and graduates ideas into projects.
@@ -274,7 +274,7 @@ Free transcript via youtube-transcript-api. Optional metadata + top comments via
 
 ---
 
-## 47 Commands
+## 49 Commands
 
 ### Operations -- Claude remembers
 
@@ -322,6 +322,8 @@ Free transcript via youtube-transcript-api. Optional metadata + top comments via
 | `/obsidian-connect [A] [B]` | Bridges two unrelated domains to spark new ideas |
 | `/vault-deep-synthesis [topic]` | Cross-references every note on a topic: agreements, contradictions, stale claims, gaps |
 | `/obsidian-distill [note or source]` | Condenses a long note/source into key claims, each tagged with provenance back to the exact source block |
+| `/obsidian-crystallize` | Preserves a conversation as an auditable transcript and source-linked durable knowledge |
+| `/obsidian-nightly` | Runs the shipped five-phase sleeptime vault-consolidation procedure on demand |
 | `/idea-discovery` | Ranks 3-5 next-direction candidates from ideas, open questions, and orphan research |
 | `/obsidian-graduate` | Turns an idea fragment into a full project with tasks |
 
@@ -603,7 +605,7 @@ vault/
 
 ## Install
 
-> **One codebase, eight builds.** Pick yours below. The vault behavior is identical across all of them; only the install path and the dispatcher file (`CLAUDE.md` / `AGENTS.md` / `GEMINI.md` / `.agents/skills/` / `.pi/` / workflow SKILL.md) differ.
+> **One codebase, nine builds.** Pick yours below. The vault behavior is identical across all of them; only the install path and the dispatcher file (`CLAUDE.md` / `AGENTS.md` / `GEMINI.md` / `.agents/skills/` / `.pi/` / workflow SKILL.md) differ.
 
 Rather than ask you to take that on faith, here is what each build currently passes:
 
@@ -616,6 +618,7 @@ Rather than ask you to take that on faith, here is what each build currently pas
 | Gemini CLI | pass | pass | pass | pass |
 | Grok Bot | pass | pass | pass | pass |
 | Hermes | pass | pass | pass | pass |
+| OMP | pass | pass | pass | pass |
 | OpenCode | pass | pass | pass | pass |
 | Pi | pass | pass | pass | pass |
 
@@ -624,7 +627,7 @@ Rather than ask you to take that on faith, here is what each build currently pas
 
 
 
-**Prerequisites:** [Claude Code](https://claude.com/claude-code) (or one of the other six platforms below), `git`, and [`uv`](https://docs.astral.sh/uv/) for the Python helpers (health check, research toolkit, bootstrap). `jq` is **required for the classic script install** - `scripts/setup.sh` uses it to edit `~/.claude/settings.json` safely and exits if it is missing. Not needed on the plugin path. Optional: [Ollama](https://ollama.com) for local semantic search, `openai-whisper` (installed on first audio ingest, pulls in PyTorch). No API keys needed for the core vault commands.
+**Prerequisites:** [Claude Code](https://claude.com/claude-code) (or one of the other seven platforms below), `git`, and [`uv`](https://docs.astral.sh/uv/) for the Python helpers (health check, research toolkit, bootstrap). `jq` is **required for the classic script install** - `scripts/setup.sh` uses it to edit `~/.claude/settings.json` safely and exits if it is missing. Not needed on the plugin path. Optional: [Ollama](https://ollama.com) for local semantic search, `openai-whisper` (installed on first audio ingest, pulls in PyTorch). No API keys needed for the core vault commands.
 
 ### Claude Code (default)
 
@@ -637,13 +640,13 @@ Rather than ask you to take that on faith, here is what each build currently pas
 
 <img src="media/plugin-install.gif" alt="Installing obsidian-second-brain through the Claude Code plugin marketplace: marketplace add, plugin install, status enabled." width="100%" />
 
-That ships all 47 commands, the skill manual, the session-context hook, the opt-in background agent (inert until you arm it - see [hooks/postcompact.hook.example.json](hooks/postcompact.hook.example.json)), and the vault MCP server. Then tell Claude where your vault lives by adding to the `env` section of `~/.claude/settings.json`:
+That ships all 49 commands, the skill manual, the session-context hook, the opt-in background agent (inert until you arm it - see [hooks/postcompact.hook.example.json](hooks/postcompact.hook.example.json)), and the vault MCP server. Then tell Claude where your vault lives by adding to the `env` section of `~/.claude/settings.json`:
 
 ```json
 "env": { "OBSIDIAN_VAULT_PATH": "/path/to/your/vault" }
 ```
 
-Restart Claude Code, then run `/obsidian-second-brain:obsidian-init` inside your vault. Plugin commands are namespaced, so every command is `/obsidian-second-brain:<name>` (type `/obsidian-second-brain:` to see all 45). Update later with `/plugin update obsidian-second-brain`.
+Restart Claude Code, then run `/obsidian-second-brain:obsidian-init` inside your vault. Plugin commands are namespaced, so every command is `/obsidian-second-brain:<name>` (type `/obsidian-second-brain:` to see all 47 non-calendar generic commands). Update later with `/plugin update obsidian-second-brain`.
 
 **Classic install (script).** Use this if you want the commands as bare names (`/obsidian-init`, `/research`, ...) or you are developing the skill and want live edits. One line (clones the skill, installs the slash commands, registers the session-context hook, and offers the research env):
 
@@ -768,6 +771,15 @@ For the privacy story, run a smaller Hermes locally through [Ollama](https://oll
 
 What to expect (open models follow instructions less reliably than Claude, so this is honest, not a promise of parity): the core commands - `/obsidian-save`, `/obsidian-daily`, `/obsidian-capture`, `/obsidian-find`, `/obsidian-task`, and `/research` in free mode - hold up well. The sub-agent-heavy commands and the deep synthesis ones (`/obsidian-architect`, `/obsidian-reconcile`, `/research-deep`) lean hard on instruction-following, so prefer `hermes-4-405b` (or Claude) for those. The AI-first vault rule still applies on every write regardless of model.
 
+### Oh My Pi (OMP) — vault-local commands and Agent Skills
+
+```bash
+bash scripts/build.sh --platform omp
+bash install.sh omp --vault /absolute/path/to/vault
+```
+
+OMP installs copies only to `<vault>/.agents/commands`, `<vault>/.agents/skills`, and the managed root `AGENTS.md`. It installs 46 command/skill pairs because it excludes the calendar integration and source-authoring `/create-command`. Use `/name [args]` or `/skill:<name> [args]`; no global OMP paths or scheduler are required.
+
 ### Research toolkit (optional)
 
 The 7 research commands use API keys (2 of them fall back to free sources without any).
@@ -833,7 +845,7 @@ An Obsidian plugin runs inside Obsidian and is written in TypeScript against Obs
 Run the one-line installer from the [Install](#install) section above. It clones the repo to `~/.claude/skills/obsidian-second-brain` and symlinks the slash commands into `~/.claude/commands/` so Claude Code picks them up automatically. Restart Claude Code after install. The skill loads on every session that touches an Obsidian vault.
 
 ### Does this work with Codex CLI, Gemini CLI, or OpenCode?
-Yes. The repo ships a build script that compiles the platform-neutral source into eight platform-specific outputs: Claude Code (slash commands + `CLAUDE.md`), Codex CLI (native Agent Skills), Gemini CLI (`GEMINI.md` + `.gemini/commands/`), OpenCode (`AGENTS.md` + `.opencode/commands/`), Hermes (native skills), Pi (`package.json` + `.pi/`), Grok Bot (workflow SKILL.md files + MCP), and a unified Agent Skills build (one `.agents/skills/` tree for Antigravity / Codex / OpenCode / GitHub Copilot CLI and any other Agent Skills harness). Run `bash scripts/build.sh --platform codex-cli` (or another platform name), then copy the resulting `dist/<platform>/` tree into your vault. The non-Claude builds either emit native skills or auto-generate a routing table that maps natural-language triggers to command files, so the same 44 cross-platform commands work no matter which CLI you use (the calendar command is Claude Code only, since it depends on the Google Calendar MCP). The vault rules (AI-first notes, frontmatter, wikilinks, recency markers) are identical across every platform.
+Yes. The repo ships a build script that compiles the platform-neutral source into nine platform-specific outputs: Claude Code (slash commands + `CLAUDE.md`), Codex CLI (native Agent Skills), Gemini CLI (`GEMINI.md` + `.gemini/commands/`), OpenCode (`AGENTS.md` + `.opencode/commands/`), Hermes (native skills), Pi (`package.json` + `.pi/`), Grok Bot (workflow SKILL.md files + MCP), a unified Agent Skills build (one `.agents/skills/` tree for Antigravity / Codex / OpenCode / GitHub Copilot CLI and any other Agent Skills harness), and Oh My Pi (`.agents/commands` + `.agents/skills` project-local tree).
 
 ### Does this run on Hermes or other open models?
 Yes. The skill is model-agnostic - the OpenCode, Codex, and Gemini builds are plain instruction files, so they run on whatever model the host CLI uses, including open models like Nous Research Hermes. The most common path is OpenCode pointed at Hermes via OpenRouter (or a local Hermes through Ollama / LM Studio for full privacy). See "Run on Hermes / open models" in the Install section for the exact config. Honest expectation: the core save / daily / capture / find / task commands and free-mode `/research` hold up well; the sub-agent-heavy and deep-synthesis commands (`/obsidian-architect`, `/obsidian-reconcile`, `/research-deep`) want a stronger instruction-follower, so prefer `hermes-4-405b` or Claude for those.

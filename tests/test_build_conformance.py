@@ -7,7 +7,7 @@ green, all three of which had actually happened:
   1. `bash scripts/build.sh` with no --platform (the all-platforms loop) was
      never exercised, and three adapters were never built at all. A sabotaged
      adapter could emit an empty tree and the suite still passed 198/198.
-  2. The SKILL_ROOT placeholder is a Claude Code affordance. Five of seven builds
+  2. The SKILL_ROOT placeholder is a Claude Code affordance. Five of eight builds
      shipped it unresolved, so every Python-backed command tried to cd into a
      directory literally named SKILL_ROOT.
   3. `rewrite_platform_paths()` only matched `.claude/`, which appears in no
@@ -67,7 +67,7 @@ def built() -> Path:
 def test_every_adapter_is_discovered():
     """Guards the parametrization itself: if this drops to a handful, the rest of
     the file silently stops covering the platforms it claims to."""
-    assert len(PLATFORMS) >= 7, f"expected 7+ adapters, found {PLATFORMS}"
+    assert len(PLATFORMS) >= 9, f"expected 9+ adapters, found {PLATFORMS}"
 
 
 @pytest.mark.parametrize("platform", PLATFORMS)

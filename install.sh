@@ -3,6 +3,11 @@
 set -e
 
 SKILL_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if [[ "${1:-}" == "omp" ]]; then
+  shift
+  exec "$SKILL_DIR/scripts/install-omp.sh" "$@"
+fi
+
 CLAUDE_DIR="$HOME/.claude"
 COMMANDS_DIR="$CLAUDE_DIR/commands"
 SKILLS_DIR="$CLAUDE_DIR/skills"

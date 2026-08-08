@@ -12,6 +12,8 @@ from __future__ import annotations
 
 import json
 import os
+import re
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -29,6 +31,119 @@ def _json_from_stdout(stdout: str) -> dict:
         if line.strip() == "{":
             return json.loads("\n".join(lines[index:]))
     raise AssertionError(f"JSON payload not found in stdout:\n{stdout}")
+
+
+OMP_DIST = REPO_ROOT / "dist" / "omp"
+OMP_FACTUAL_CLAUDE_VALUES = (
+    "Anthropic Claude",
+    "claude-haiku-4-5",
+    "claude-watch",
+    "claude-video",
+)
+OMP_SOURCE_ONLY_CORE_PATHS = (
+    "references/DELTAS.template.md",
+    "references/pi-testing.md",
+    "scripts/build.sh",
+    "scripts/build_site.py",
+    "scripts/conformance_report.py",
+    "scripts/convert.sh",
+    "scripts/install-codex-wrappers.sh",
+    "scripts/install-omp.sh",
+    "scripts/quick-install.sh",
+    "scripts/run-command.sh",
+    "scripts/setup.sh",
+    "scripts/setup_settings_hook.py",
+    "scripts/update-vault-integration.sh",
+)
+_CITED_REFERENCE = re.compile(r"[^\s`(\"']*references/[a-z0-9-]+\.md")
+
+
+def _build_platform(platform: str) -> Path:
+    result = subprocess.run(
+        ["bash", "scripts/build.sh", "--platform", platform],
+        cwd=REPO_ROOT,
+        check=False,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+    )
+    assert result.returncode == 0, result.stderr
+    return REPO_ROOT / "dist" / platform
+
+
+def _run_omp_converter(dist: Path) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        ["bash", "scripts/convert.sh", "--dist", str(dist)],
+        cwd=REPO_ROOT,
+        check=False,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+    )
+
+
+def _run_omp_install(vault: Path, *, env: dict[str, str] | None = None) -> subprocess.CompletedProcess[str]:
+    install_env = os.environ.copy()
+    if env:
+        install_env.update(env)
+    return subprocess.run(
+        ["bash", "install.sh", "omp", "--vault", str(vault)],
+        cwd=REPO_ROOT,
+        check=False,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        env=install_env,
+    )
+
+
+def _make_omp_vault(tmp_path: Path, name: str = "vault") -> Path:
+    vault = tmp_path / name
+    (vault / ".obsidian").mkdir(parents=True)
+    (vault / "_AGENTS.md").write_text(
+        "# Vault conventions\n\nKeep project notes under `Knowledge/`.\n",
+        encoding="utf-8",
+    )
+    return vault
+
+
+def _tree_snapshot(root: Path) -> dict[str, bytes]:
+    return {
+        path.relative_to(root).as_posix(): path.read_bytes()
+        for path in sorted(root.rglob("*"))
+        if path.is_file()
+    }
+
+
+def _utf8_text_files(root: Path):
+    for path in sorted(root.rglob("*")):
+        if not path.is_file():
+            continue
+        try:
+            yield path, path.read_text(encoding="utf-8")
+        except UnicodeDecodeError:
+            continue
+
+
+def _omp_unresolved_references(tree: Path) -> list[str]:
+    unresolved: list[str] = []
+    for markdown in tree.rglob("*.md"):
+        text = markdown.read_text(encoding="utf-8")
+        for cited in set(_CITED_REFERENCE.findall(text)):
+            rel = cited.removeprefix("./")
+            candidates = [tree / rel, markdown.parent / rel]
+            for ancestor in markdown.parents:
+                if ancestor == tree.parent:
+                    break
+                if (ancestor / "SKILL.md").is_file():
+                    candidates.append(ancestor / rel)
+                    break
+            if not any(candidate.is_file() for candidate in candidates):
+                unresolved.append(f"{markdown.relative_to(tree).as_posix()} -> {cited}")
+    return unresolved
 
 
 def test_codex_cli_build_generates_expected_files():
@@ -314,6 +429,472 @@ def test_grok_bot_build_generates_mcp_backed_skills():
     assert "invoked with `/` or `@`" in install_text or "invoke by name" in install_text
     # Grok Bot has no hooks.
     assert "no hook runtime" in install_text.lower() or "no hooks" in install_text.lower()
+
+
+def test_omp_build_projects_neutral_agent_skills_tree():
+    """OMP is a thin project-local projection of Agent Skills: the complete
+    skills tree is authoritative and each slash command is only a bridge to it."""
+    tree = _build_platform("omp")
+    skills = tree / ".agents/skills"
+    commands = tree / ".agents/commands"
+    core = skills / "obsidian-core"
+
+    assert (tree / "AGENTS.md").is_file()
+    assert (tree / "INSTALL.md").is_file()
+    assert skills.is_dir()
+    assert commands.is_dir()
+    assert (core / "SKILL.md").is_file()
+    assert (core / "pyproject.toml").is_file()
+    assert (core / "references/ai-first-rules.md").is_file()
+
+    skill_names = sorted(path.name for path in skills.iterdir() if path.is_dir())
+    command_skills = [name for name in skill_names if name != "obsidian-core"]
+    assert {"obsidian-distill", "obsidian-crystallize", "obsidian-nightly"} <= set(command_skills)
+    assert "create-command" not in command_skills
+    assert "obsidian-calendar" not in command_skills
+
+    wrappers = sorted(path.name for path in commands.glob("*.md"))
+    assert wrappers == sorted(f"{name}.md" for name in command_skills)
+    for name in command_skills:
+        wrapper = (commands / f"{name}.md").read_text(encoding="utf-8")
+        skill = (skills / name / "SKILL.md").read_text(encoding="utf-8")
+        assert f'Run the {name} obsidian-second-brain Agent Skill.' in wrapper
+        assert f"Read and follow `skill://{name}` for this request." in wrapper
+        assert "$ARGUMENTS" in wrapper
+        assert "matching Agent Skill is not\ninstalled or discovered" in wrapper
+        # A command wrapper must not become a second, stale copy of the skill.
+        assert skill not in wrapper
+        assert "## Setup (read first)" not in wrapper
+
+    manifest = (tree / ".agents/obsidian-second-brain.manifest").read_text(
+        encoding="utf-8"
+    ).splitlines()
+    expected_manifest = sorted(
+        [f"command\t{name}.md" for name in command_skills]
+        + [f"skill\t{name}" for name in skill_names]
+    )
+    assert manifest == expected_manifest
+
+    manual = (tree / "AGENTS.md").read_text(encoding="utf-8")
+    assert "<!-- managed-by: obsidian-second-brain-omp -->" in manual
+    for required in (
+        "$OBSIDIAN_VAULT_PATH",
+        "`_AGENTS.md`",
+        ".agents/commands",
+        ".agents/skills",
+        ".agents/skills/obsidian-core/references/ai-first-rules.md",
+        "## For future agent",
+    ):
+        assert required in manual
+    assert "routing table" not in manual.lower()
+
+    install = (tree / "INSTALL.md").read_text(encoding="utf-8")
+    assert "bash install.sh omp --vault /absolute/path/to/vault" in install
+    assert "/name [args]" in install
+    assert "/skill:<name> [args]" in install
+
+    # The pinned upstream distill workflow must retain its source-input contract.
+    distill = (skills / "obsidian-distill/SKILL.md").read_text(encoding="utf-8")
+    assert "a note path, a `[[wikilink]]`, a folder, or a source URL/file" in distill
+
+
+def test_omp_skills_and_hermes_blueprint_preserve_new_workflows():
+    """The OMP command skills carry the canonical nightly/crystallize bodies;
+    Hermes projects the same nightly body once as an opt-in blueprint."""
+    tree = _build_platform("omp")
+    skills = tree / ".agents/skills"
+    nightly = (skills / "obsidian-nightly/SKILL.md").read_text(encoding="utf-8")
+    crystallize = (skills / "obsidian-crystallize/SKILL.md").read_text(encoding="utf-8")
+    phases = (
+        "Phase 1 - Close the day:",
+        "Phase 2 - Reconcile:",
+        "Phase 3 - Synthesize:",
+        "Phase 4 - Heal:",
+        "Phase 5 - Log:",
+    )
+
+    for phase in phases:
+        assert phase in nightly
+    assert "type: conflict" in nightly
+    assert "status: open" in nightly
+    assert "Do not delete, archive, merge, or resolve contradictions destructively." in nightly
+    assert "Only add, update, and link." in nightly
+
+    for required in (
+        "^<slug>-u-1",
+        "^<slug>-a-1",
+        "## Derived notes",
+        'source: "[[<source_path>]]"',
+        "crystallize this conversation",
+        "crystallize our exchange",
+        "crystallize what we learned",
+    ):
+        assert required in crystallize
+
+    hermes = _build_platform("hermes")
+    assert not list((hermes / "skills").rglob("obsidian-nightly/SKILL.md"))
+    blueprints = list((hermes / "optional-skills").glob("obsidian-nightly/SKILL.md"))
+    assert len(blueprints) == 1
+    blueprint = blueprints[0].read_text(encoding="utf-8")
+    assert 'schedule: "0 22 * * *"' in blueprint
+    for phase in phases:
+        assert phase in blueprint
+    assert "auto-resolve" not in blueprint.lower()
+    assert "root `log.md`" not in blueprint.lower()
+
+
+def test_omp_output_is_neutral_self_contained_and_runtime_safe():
+    """OMP alone receives the neutral naming conversion and retains only the
+    runtime support files an installed vault can actually use."""
+    tree = _build_platform("omp")
+    skills = tree / ".agents/skills"
+    core = skills / "obsidian-core"
+
+    for relative in OMP_SOURCE_ONLY_CORE_PATHS:
+        assert not (core / relative).exists(), relative
+
+    text_files = list(_utf8_text_files(tree))
+    combined = "\n".join(text for _, text in text_files)
+    for factual_value in OMP_FACTUAL_CLAUDE_VALUES:
+        assert factual_value in combined
+    assert "SKILL_ROOT" not in combined
+    assert not _omp_unresolved_references(tree)
+    assert any(
+        'uv run --directory ".agents/skills/obsidian-core"' in text
+        for _, text in text_files
+    )
+
+    for path, text in text_files:
+        relative = path.relative_to(tree).as_posix()
+        assert not re.search(r"claude", relative, flags=re.IGNORECASE), relative
+        neutralized = text
+        for factual_value in OMP_FACTUAL_CLAUDE_VALUES:
+            neutralized = neutralized.replace(factual_value, "")
+        assert not re.search(r"claude", neutralized, flags=re.IGNORECASE), relative
+
+
+def test_omp_converter_rejects_every_tree_except_its_exact_output(tmp_path):
+    """The generated-tree converter may mutate only dist/omp, and its factual
+    allowlist must not turn into a general exception for Claude-shaped tokens."""
+    agent_skills = _build_platform("agent-skills")
+    omp = _build_platform("omp")
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    outside_sentinel = outside / "sentinel.md"
+    outside_sentinel.write_text("Claude must remain untouched outside dist.\n", encoding="utf-8")
+
+    agent_before = _tree_snapshot(agent_skills)
+    omp_before = _tree_snapshot(omp)
+    outside_before = outside_sentinel.read_bytes()
+    for rejected in (REPO_ROOT / "dist", agent_skills, outside):
+        result = _run_omp_converter(rejected)
+        assert result.returncode != 0, result.stdout + result.stderr
+    assert _tree_snapshot(agent_skills) == agent_before
+    assert _tree_snapshot(omp) == omp_before
+    assert outside_sentinel.read_bytes() == outside_before
+
+    allowlisted = omp / "converter-factual-allowlist.txt"
+    allowlisted.write_text("\n".join(OMP_FACTUAL_CLAUDE_VALUES) + "\n", encoding="utf-8")
+    try:
+        result = _run_omp_converter(omp)
+        assert result.returncode == 0, result.stdout + result.stderr
+        assert allowlisted.read_text(encoding="utf-8") == "\n".join(OMP_FACTUAL_CLAUDE_VALUES) + "\n"
+    finally:
+        allowlisted.unlink(missing_ok=True)
+
+    forbidden_text = omp / "converter-forbidden-token.txt"
+    forbidden_text.write_text("Claude is an unapproved provider token.\n", encoding="utf-8")
+    result = _run_omp_converter(omp)
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "Claude" not in forbidden_text.read_text(encoding="utf-8")
+    forbidden_text.unlink(missing_ok=True)
+
+    partial_mutation = omp / "converter-partial-mutation.txt"
+    partial_mutation.write_text("Claude Code must not be converted in place.\n", encoding="utf-8")
+    unapproved_token = omp / "converter-unapproved-token.txt"
+    unapproved_token.write_text("unapprovedClaudeToken must reject conversion.\n", encoding="utf-8")
+    try:
+        before = _tree_snapshot(omp)
+        result = _run_omp_converter(omp)
+        assert result.returncode != 0, result.stdout + result.stderr
+        assert _tree_snapshot(omp) == before
+    finally:
+        partial_mutation.unlink(missing_ok=True)
+        unapproved_token.unlink(missing_ok=True)
+
+    path_partial_mutation = omp / "converter-path-partial-mutation.txt"
+    path_partial_mutation.write_text("Claude Code must not be converted in place.\n", encoding="utf-8")
+    forbidden_path = omp / "unapprovedClaudeToken.txt"
+    forbidden_path.write_text("Only factual exceptions belong in this file.\n", encoding="utf-8")
+    try:
+        before = _tree_snapshot(omp)
+        result = _run_omp_converter(omp)
+        assert result.returncode != 0, result.stdout + result.stderr
+        assert _tree_snapshot(omp) == before
+    finally:
+        path_partial_mutation.unlink(missing_ok=True)
+        forbidden_path.unlink(missing_ok=True)
+
+
+def test_omp_converter_transforms_nested_paths_and_mixed_case_connector():
+    """Path components use the same ordered neutralization as text artifacts."""
+    omp = _build_platform("omp")
+    nested = omp / "converter-nested"
+    source = nested / ".claude" / "claude-code"
+    source.mkdir(parents=True)
+    payload = source / "claude-md-template.md"
+    payload.write_text(
+        "Use cLaUdE.AI gOoGlE cAlEnDaR cOnNeCtOr for this request.\n",
+        encoding="utf-8",
+    )
+
+    try:
+        result = _run_omp_converter(omp)
+        assert result.returncode == 0, result.stdout + result.stderr
+        converted = nested / ".agents" / "omp" / "agents-md-template.md"
+        assert converted.is_file()
+        text = converted.read_text(encoding="utf-8")
+        assert "connected Google Calendar MCP" in text
+        assert not re.search(r"claude", text, flags=re.IGNORECASE)
+        assert not (nested / ".claude").exists()
+    finally:
+        shutil.rmtree(nested, ignore_errors=True)
+
+
+def test_omp_converter_rejects_path_collisions_without_mutation():
+    """A staged collision cannot publish a partly neutralized OMP tree."""
+    omp = _build_platform("omp")
+    collision = omp / "converter-collision"
+    (collision / "claude-code").mkdir(parents=True)
+    (collision / "claude-code" / "source.md").write_text("source\n", encoding="utf-8")
+    (collision / "omp").mkdir()
+    (collision / "omp" / "existing.md").write_text("existing\n", encoding="utf-8")
+    pending = omp / "converter-collision-pending.txt"
+    pending.write_text("Claude Code must remain unchanged on collision.\n", encoding="utf-8")
+
+    try:
+        before = _tree_snapshot(omp)
+        result = _run_omp_converter(omp)
+        assert result.returncode != 0, result.stdout + result.stderr
+        assert "collision" in (result.stdout + result.stderr).lower()
+        assert _tree_snapshot(omp) == before
+    finally:
+        shutil.rmtree(collision, ignore_errors=True)
+        pending.unlink(missing_ok=True)
+
+
+def test_omp_installer_is_project_local_idempotent_and_prunes_owned_stale_paths(tmp_path):
+    """The installer owns only manifest-listed paths, leaves neighboring agent
+    files alone, and can safely refresh the exact same vault twice."""
+    vault = _make_omp_vault(tmp_path)
+    unrelated = vault / ".agents/unrelated.txt"
+    unrelated.parent.mkdir()
+    unrelated.write_text("leave this user file alone\n", encoding="utf-8")
+    original_rules = (vault / "_AGENTS.md").read_bytes()
+
+    first = _run_omp_install(vault)
+    assert first.returncode == 0, first.stdout + first.stderr
+    agents = vault / ".agents"
+    skills = agents / "skills"
+    commands = agents / "commands"
+    manifest_path = agents / "obsidian-second-brain.manifest"
+    root_agents = vault / "AGENTS.md"
+    assert (skills / "obsidian-core/SKILL.md").is_file()
+    assert (skills / "obsidian-distill/SKILL.md").is_file()
+    assert (skills / "obsidian-crystallize/SKILL.md").is_file()
+    assert (skills / "obsidian-nightly/SKILL.md").is_file()
+    assert (commands / "obsidian-nightly.md").is_file()
+    assert "<!-- managed-by: obsidian-second-brain-omp -->" in root_agents.read_text(
+        encoding="utf-8"
+    )
+    assert (vault / "_AGENTS.md").read_bytes() == original_rules
+    assert unrelated.read_text(encoding="utf-8") == "leave this user file alone\n"
+
+    first_tree = _tree_snapshot(agents)
+    first_root = root_agents.read_bytes()
+    second = _run_omp_install(vault)
+    assert second.returncode == 0, second.stdout + second.stderr
+    assert _tree_snapshot(agents) == first_tree
+    assert root_agents.read_bytes() == first_root
+
+    # A command recorded in the previous manifest is owned, even if it is no
+    # longer in the current build, so an upgrade must remove it and nothing else.
+    stale = commands / "stale-owned.md"
+    stale.write_text("stale generated command\n", encoding="utf-8")
+    previous = manifest_path.read_text(encoding="utf-8").splitlines()
+    manifest_path.write_text(
+        "\n".join(sorted([*previous, "command\tstale-owned.md"])) + "\n",
+        encoding="utf-8",
+    )
+    refreshed = _run_omp_install(vault)
+    assert refreshed.returncode == 0, refreshed.stdout + refreshed.stderr
+    assert not stale.exists()
+    assert "command\tstale-owned.md" not in manifest_path.read_text(encoding="utf-8")
+    assert unrelated.read_text(encoding="utf-8") == "leave this user file alone\n"
+
+
+def test_omp_installer_rejects_bad_manifests_and_unowned_collisions_before_mutation(tmp_path):
+    """Malformed ownership data and an unowned generated destination must fail
+    during preflight, before the installer writes any managed path."""
+    malformed = {
+        "empty": "",
+        "not-tsv": "this is not a manifest\n",
+        "escaping": "command\t../escape.md\n",
+        "duplicate": "command\tobsidian-distill.md\ncommand\tobsidian-distill.md\n",
+        "unknown-type": "other\tobsidian-distill.md\n",
+    }
+    for name, contents in malformed.items():
+        vault = _make_omp_vault(tmp_path, name)
+        agents = vault / ".agents"
+        agents.mkdir()
+        manifest = agents / "obsidian-second-brain.manifest"
+        manifest.write_text(contents, encoding="utf-8")
+        sentinel = agents / "unrelated.txt"
+        sentinel.write_text(f"{name} sentinel\n", encoding="utf-8")
+
+        result = _run_omp_install(vault)
+        assert result.returncode != 0, f"{name}: {result.stdout}{result.stderr}"
+        assert manifest.read_text(encoding="utf-8") == contents
+        assert sentinel.read_text(encoding="utf-8") == f"{name} sentinel\n"
+        assert not (vault / "AGENTS.md").exists()
+        assert not list(agents.glob(".obsidian-second-brain-stage.*"))
+        assert not list(agents.glob(".obsidian-second-brain-backup.*"))
+        assert not list(agents.glob(".obsidian-second-brain-journal.*"))
+
+    collision_vault = _make_omp_vault(tmp_path, "collision")
+    collision = collision_vault / ".agents/commands/obsidian-distill.md"
+    collision.parent.mkdir(parents=True)
+    collision.write_text("user-owned command collision\n", encoding="utf-8")
+    result = _run_omp_install(collision_vault)
+    assert result.returncode != 0, result.stdout + result.stderr
+    assert collision.read_text(encoding="utf-8") == "user-owned command collision\n"
+    assert not (collision_vault / "AGENTS.md").exists()
+    assert not list((collision_vault / ".agents").glob(".obsidian-second-brain-stage.*"))
+    assert not list((collision_vault / ".agents").glob(".obsidian-second-brain-backup.*"))
+    assert not list((collision_vault / ".agents").glob(".obsidian-second-brain-journal.*"))
+
+
+def test_omp_installer_rejects_new_update_destination_collision_before_mutation(tmp_path):
+    """An update may replace only paths its prior manifest already owns."""
+    vault = _make_omp_vault(tmp_path)
+    installed = _run_omp_install(vault)
+    assert installed.returncode == 0, installed.stdout + installed.stderr
+
+    agents = vault / ".agents"
+    manifest = agents / "obsidian-second-brain.manifest"
+    root_agents = vault / "AGENTS.md"
+    collision = agents / "commands/obsidian-nightly.md"
+    collision.write_text("user-owned update collision\n", encoding="utf-8")
+    manifest.write_text(
+        "\n".join(
+            line
+            for line in manifest.read_text(encoding="utf-8").splitlines()
+            if line != "command\tobsidian-nightly.md"
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    before_agents = _tree_snapshot(agents)
+    before_root = root_agents.read_bytes()
+
+    result = _run_omp_install(vault)
+    assert result.returncode != 0, result.stdout + result.stderr
+    assert "unowned destination conflict" in (result.stdout + result.stderr)
+    assert _tree_snapshot(agents) == before_agents
+    assert root_agents.read_bytes() == before_root
+    assert not list(agents.glob(".obsidian-second-brain-stage.*"))
+    assert not list(agents.glob(".obsidian-second-brain-backup.*"))
+    assert not list(agents.glob(".obsidian-second-brain-journal.*"))
+
+
+def test_omp_installer_rejects_user_root_agents_before_vault_mutation(tmp_path):
+    """A user-owned root AGENTS.md blocks the entire install, not just its copy."""
+    vault = _make_omp_vault(tmp_path)
+    root_agents = vault / "AGENTS.md"
+    root_agents.write_text("# My vault rules\n\nDo not replace these.\n", encoding="utf-8")
+    before = _tree_snapshot(vault)
+
+    result = _run_omp_install(vault)
+    assert result.returncode != 0, result.stdout + result.stderr
+    assert "user-owned root AGENTS.md conflict" in (result.stdout + result.stderr)
+    assert _tree_snapshot(vault) == before
+    assert not (vault / ".agents").exists()
+
+
+@pytest.mark.parametrize("unsafe_path", (".agents", ".agents/commands", ".agents/skills"))
+def test_omp_installer_rejects_symlinked_destinations_without_outside_writes(
+    tmp_path, unsafe_path
+):
+    """Every direct vault destination must remain inside the vault."""
+    vault = _make_omp_vault(tmp_path, unsafe_path.replace("/", "-"))
+    outside = tmp_path / f"outside-{unsafe_path.replace('/', '-')}"
+    outside.mkdir()
+    sentinel = outside / "sentinel.txt"
+    sentinel.write_text("outside vault\n", encoding="utf-8")
+
+    destination = vault / unsafe_path
+    if unsafe_path != ".agents":
+        destination.parent.mkdir()
+    destination.symlink_to(outside, target_is_directory=True)
+    before_outside = _tree_snapshot(outside)
+
+    result = _run_omp_install(vault)
+    assert result.returncode != 0, result.stdout + result.stderr
+    assert destination.is_symlink()
+    assert _tree_snapshot(outside) == before_outside
+    assert not (vault / "AGENTS.md").exists()
+
+
+def test_omp_installer_replaces_recognized_legacy_root_agents_file(tmp_path):
+    vault = _make_omp_vault(tmp_path)
+    legacy = vault / "AGENTS.md"
+    legacy.write_text(
+        "# Legacy generated manual\n\nGenerated by adapters/omp/adapter.sh\n",
+        encoding="utf-8",
+    )
+
+    result = _run_omp_install(vault)
+    assert result.returncode == 0, result.stdout + result.stderr
+    installed = legacy.read_text(encoding="utf-8")
+    assert "<!-- managed-by: obsidian-second-brain-omp -->" in installed
+    assert "Generated by adapters/omp/adapter.sh" not in installed
+
+
+def test_omp_installer_rolls_back_after_the_skills_failpoint(tmp_path):
+    """A failure immediately after committing skills restores prior managed
+    content, root rules, and manifest, including a path created for this run."""
+    vault = _make_omp_vault(tmp_path)
+    initial = _run_omp_install(vault)
+    assert initial.returncode == 0, initial.stdout + initial.stderr
+
+    agents = vault / ".agents"
+    manifest = agents / "obsidian-second-brain.manifest"
+    root_agents = vault / "AGENTS.md"
+    preserved_skill = agents / "skills/obsidian-distill/SKILL.md"
+    new_this_run = agents / "skills/obsidian-crystallize"
+    preserved_skill.write_text("old managed skill content\n", encoding="utf-8")
+    root_agents.write_text(
+        "<!-- managed-by: obsidian-second-brain-omp -->\n\nold managed root rules\n",
+        encoding="utf-8",
+    )
+    old_manifest = manifest.read_bytes()
+    old_root = root_agents.read_bytes()
+    old_skill = preserved_skill.read_bytes()
+    shutil.rmtree(new_this_run)
+    before_agents = _tree_snapshot(agents)
+
+    failed = _run_omp_install(
+        vault, env={"OBSIDIAN_SECOND_BRAIN_TEST_FAIL_AFTER": "skills"}
+    )
+    assert failed.returncode != 0, failed.stdout + failed.stderr
+    assert manifest.read_bytes() == old_manifest
+    assert root_agents.read_bytes() == old_root
+    assert preserved_skill.read_bytes() == old_skill
+    assert not new_this_run.exists()
+    assert not list(agents.glob(".obsidian-second-brain-stage.*"))
+    assert not list(agents.glob(".obsidian-second-brain-backup.*"))
+    assert not list(agents.glob(".obsidian-second-brain-journal.*"))
+    assert _tree_snapshot(agents) == before_agents
 
 
 def test_vault_health_json_reports_clean_linked_vault(tmp_path):

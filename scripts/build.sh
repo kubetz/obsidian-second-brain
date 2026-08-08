@@ -40,6 +40,7 @@ Available platforms:
   hermes        - Nous Research Hermes Agent (native skills, skills/<category>/)
   opencode      - OpenCode (AGENTS.md + .opencode/commands/)
   pi            - Pi Coding Agent (package.json + .pi/prompts/ + .pi/skills/)
+  omp           - Oh My Pi (vault-local .agents/commands + .agents/skills/)
 EOF
       exit 0
       ;;

@@ -87,7 +87,7 @@ _category_title() {
     thinking) echo "Thinking - synthesis, decisions, learning, reviews" ;;
     research) echo "Research - bring external sources into the vault" ;;
     meta)     echo "Meta - vault setup, health, structure" ;;
-    *)        echo "${1^}" ;;
+    *)        echo "$(tr '[:lower:]' '[:upper:]' <<< "${1:0:1}")${1:1}" ;;
   esac
 }
 
