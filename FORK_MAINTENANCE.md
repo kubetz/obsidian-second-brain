@@ -133,6 +133,12 @@ it back, and never copies it. Copying it re-traverses a venv's symlinks, which a
 venv that already went through a copy can fail on outright, and it would carry a
 build-tree venv into the vault. A forward port must keep that asymmetry.
 
+A `" 2"` / `" 3"` sibling is foreign too - macOS keep-both naming produced
+outside this installer - so the installer never copies or restores one. A backup
+that carried them handed them straight back to the next rollback, and because a
+`kill -TERM` does not run bash's EXIT trap, an interrupted install could also
+strand its stage/backup/journal directories. Both are covered by tests.
+
 ## Things that must not return
 
 - Source-tree neutralization or neutralization of a non-OMP build.
