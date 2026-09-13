@@ -323,9 +323,11 @@ path_exists "$ROOT_AGENTS" && ROOT_AGENTS_EXISTED=1
 
 stage="$BASE/.obsidian-second-brain-stage.$$"
 backup="$BASE/.obsidian-second-brain-backup.$$"
+runtime="$BASE/.obsidian-second-brain-runtime.$$"
 journal="$BASE/.obsidian-second-brain-journal.$$"
 STAGE_CREATED=0
 BACKUP_CREATED=0
+RUNTIME_CREATED=0
 JOURNAL_CREATED=0
 BASE_CREATED=0
 SKILLS_CREATED=0
@@ -343,7 +345,54 @@ cleanup_workdirs() {
   [[ "$STAGE_CREATED" -eq 0 ]] || rm -rf "$stage"
   [[ "$BACKUP_CREATED" -eq 0 ]] || rm -rf "$backup"
   [[ "$JOURNAL_CREATED" -eq 0 ]] || rm -f "$journal"
+  # The runtime workdir only ever holds state that was moved out of a skill
+  # during this run, so it must be empty by now.  If it is not, the state could
+  # not be put back and is kept rather than deleted.
+  if [[ "$RUNTIME_CREATED" -eq 1 ]]; then
+    rmdir "$runtime" 2>/dev/null || \
+      echo "error: skill runtime state left at $runtime" >&2
+  fi
 }
+
+# Runtime state a skill directory accumulates on its own - the shared engine's
+# uv virtualenv.  It is never copied: `cp -a` on a venv traverses the symlinks a
+# venv legitimately contains, and one that has been through a copy before can
+# hold a link that traversal fails on (seen in the field as "chflags: .venv/bin/
+# python3: Too many levels of symbolic links", which aborted the whole install).
+# Renaming performs no traversal, so the venv is moved out of the way and moved
+# back instead.
+copy_skill_without_runtime() {
+  local src="$1" dst="$2" entry name
+  mkdir -p "$dst"
+  for entry in "$src"/* "$src"/.[!.]*; do
+    path_exists "$entry" || continue
+    name="$(basename "$entry")"
+    [[ "$name" == ".venv" ]] && continue
+    cp -a "$entry" "$dst/$name"
+  done
+}
+
+# Move a skill's venv aside before the skill directory is replaced.  Recorded
+# before the replacement it belongs to: rollback restores the directory first
+# and moves the venv back into it afterwards.
+preserve_skill_runtime() {
+  local name="$1"
+  local source="$SKILLS/$name/.venv"
+  path_exists "$source" || return 0
+  if [[ "$RUNTIME_CREATED" -eq 0 ]]; then
+    mkdir "$runtime"
+    RUNTIME_CREATED=1
+  fi
+  journal_record "runtime-venv" "$name"
+  mv "$source" "$runtime/$name.venv"
+}
+
+restore_skill_runtime() {
+  local name="$1"
+  path_exists "$runtime/$name.venv" || return 0
+  mv "$runtime/$name.venv" "$SKILLS/$name/.venv"
+}
+
 
 restore_backup() {
   local kind="$1"
@@ -373,6 +422,15 @@ rollback() {
     case "$action" in
       created-skill) rm -rf "$SKILLS/$name" ;;
       restore-skill) restore_backup "skills" "$name" ;;
+      runtime-venv)
+        if path_exists "$runtime/$name.venv"; then
+          if path_exists "$SKILLS/$name"; then
+            mv "$runtime/$name.venv" "$SKILLS/$name/.venv"
+          else
+            echo "error: skill runtime state not restored: $runtime/$name.venv" >&2
+          fi
+        fi
+        ;;
       created-command) rm -rf "$COMMANDS/$name" ;;
       restore-command) restore_backup "commands" "$name" ;;
       created-root) rm -f "$ROOT_AGENTS" ;;
@@ -443,7 +501,7 @@ fi
 # Stage only manifest-owned artifacts.  Unlisted source files never gain
 # ownership merely because they happened to be present in dist/omp.
 for name in "${NEW_SKILLS[@]}"; do
-  cp -a "$DIST/.agents/skills/$name" "$stage/skills/$name"
+  copy_skill_without_runtime "$DIST/.agents/skills/$name" "$stage/skills/$name"
 done
 for name in "${NEW_COMMANDS[@]}"; do
   cp -a "$DIST/.agents/commands/$name" "$stage/commands/$name"
@@ -458,7 +516,11 @@ backup_managed_path() {
   local destination="$BASE/$kind/$name"
   if path_exists "$destination"; then
     [[ ! -L "$destination" ]] || fail "unsafe managed destination: $destination"
-    cp -a "$destination" "$backup/$kind/$name"
+    if [[ "$kind" == "skills" ]]; then
+      copy_skill_without_runtime "$destination" "$backup/$kind/$name"
+    else
+      cp -a "$destination" "$backup/$kind/$name"
+    fi
   fi
 }
 
@@ -488,12 +550,17 @@ install_entry() {
     [[ ! -L "$destination" ]] || fail "unsafe generated destination: $destination"
     contains "$name" "${old_names[@]}" || fail "unowned destination conflict: $destination"
     path_exists "$backup/$kind/$name" || fail "destination changed after preflight: $destination"
+    # Runtime state is moved out first, so it is journaled before the
+    # replacement it belongs to: rollback then restores the directory and moves
+    # the venv back into it, in that order.
+    [[ "$kind" != "skills" ]] || preserve_skill_runtime "$name"
     journal_record "restore-${kind%?}" "$name"
     rm -rf "$destination"
   else
     journal_record "created-${kind%?}" "$name"
   fi
   cp -a "$stage/$kind/$name" "$destination"
+  [[ "$kind" != "skills" ]] || restore_skill_runtime "$name"
 }
 
 remove_stale_entry() {
