@@ -484,6 +484,8 @@ def test_omp_build_projects_neutral_agent_skills_tree():
         ".agents/skills",
         ".agents/skills/obsidian-core/references/ai-first-rules.md",
         "## For future agent",
+        "~/.config/obsidian-second-brain/.env",
+        "en-orig",
     ):
         assert required in manual
     assert "routing table" not in manual.lower()
@@ -933,6 +935,54 @@ def test_omp_installer_preserves_skill_runtime_state_on_update(tmp_path):
         if path.is_symlink()
     } == before_links
     assert not list((vault / ".agents").glob(".obsidian-second-brain-runtime.*"))
+
+
+def test_omp_installer_rollback_does_not_restore_keepboth_garbage(tmp_path):
+    """Keep-both copies are foreign artifacts, not managed content: a failed
+    install must not hand them back from its backup, or every rollback reseeds
+    the vault with duplicates a later run has to clean again."""
+    vault = _make_omp_vault(tmp_path)
+    initial = _run_omp_install(vault)
+    assert initial.returncode == 0, initial.stdout + initial.stderr
+
+    agents = vault / ".agents"
+    planted = [
+        agents / "skills/obsidian-distill/SKILL 2.md",
+        agents / "skills/obsidian-core/scripts 2/keep.py",
+    ]
+    for path in planted:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("keep-both garbage\n", encoding="utf-8")
+
+    failed = _run_omp_install(
+        vault, env={"OBSIDIAN_SECOND_BRAIN_TEST_FAIL_AFTER": "skills"}
+    )
+    assert failed.returncode != 0, failed.stdout + failed.stderr
+    assert not list(agents.glob(".obsidian-second-brain-*"))
+    remaining = [
+        path.relative_to(agents).as_posix()
+        for path in (agents / "skills").rglob("*")
+        if " 2" in path.name or " 3" in path.name
+    ]
+    assert remaining == [], f"rollback restored keep-both names: {remaining}"
+
+
+def test_omp_installer_cleans_up_when_signalled(tmp_path):
+    """SIGTERM does not run bash's EXIT trap; the installer must still roll back
+    and remove its work dirs instead of leaving them in the vault."""
+    vault = _make_omp_vault(tmp_path)
+    initial = _run_omp_install(vault)
+    assert initial.returncode == 0, initial.stdout + initial.stderr
+
+    agents = vault / ".agents"
+    before = _tree_snapshot(agents)
+    signalled = _run_omp_install(
+        vault, env={"OBSIDIAN_SECOND_BRAIN_TEST_SIGNAL": "TERM"}
+    )
+    assert signalled.returncode != 0, signalled.stdout + signalled.stderr
+    assert "interrupted" in (signalled.stdout + signalled.stderr)
+    assert not list(agents.glob(".obsidian-second-brain-*"))
+    assert _tree_snapshot(agents) == before
 
 
 def test_vault_health_json_reports_clean_linked_vault(tmp_path):

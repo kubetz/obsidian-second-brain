@@ -354,6 +354,17 @@ cleanup_workdirs() {
   fi
 }
 
+# macOS "keep both" names are foreign artifacts, never managed content, so the
+# installer neither copies nor preserves them: a backup that carried them would
+# hand them straight back to a rollback, and a stage that carried them would
+# give them a longer life in the vault.
+is_keepboth_name() {
+  case "$1" in
+    *" 2"|*" 3"|*" 2."*|*" 3."*) return 0 ;;
+  esac
+  return 1
+}
+
 # Runtime state a skill directory accumulates on its own - the shared engine's
 # uv virtualenv.  It is never copied: `cp -a` on a venv traverses the symlinks a
 # venv legitimately contains, and one that has been through a copy before can
@@ -368,6 +379,7 @@ copy_skill_without_runtime() {
     path_exists "$entry" || continue
     name="$(basename "$entry")"
     [[ "$name" == ".venv" ]] && continue
+    is_keepboth_name "$name" && continue
     cp -a "$entry" "$dst/$name"
   done
 }
@@ -467,6 +479,20 @@ on_exit() {
 }
 
 trap on_exit EXIT
+
+# A kill -TERM does not run bash's EXIT trap, which left the stage, backup and
+# journal directories behind when an install was interrupted (observed in the
+# field).  Roll back and clean up on the two signals that mean "stop now".
+on_signal() {
+  local signal="$1" status="$2"
+  trap - EXIT INT TERM
+  echo "error: interrupted by SIG$signal" >&2
+  rollback
+  exit "$status"
+}
+
+trap 'on_signal INT 130' INT
+trap 'on_signal TERM 143' TERM
 
 if [[ "$BASE_EXISTED" -eq 0 ]]; then
   mkdir "$BASE"
@@ -582,6 +608,13 @@ done
 for name in "${OLD_SKILLS[@]}"; do
   contains "$name" "${NEW_SKILLS[@]}" || remove_stale_entry "skills" "$name"
 done
+
+if [[ -n "${OBSIDIAN_SECOND_BRAIN_TEST_SIGNAL:-}" ]]; then
+  # Deterministic way to exercise the signal path: raise it at the same point
+  # the fail-after failpoint fires.
+  kill -s "$OBSIDIAN_SECOND_BRAIN_TEST_SIGNAL" "$$" || true
+  sleep 2
+fi
 
 if [[ "${OBSIDIAN_SECOND_BRAIN_TEST_FAIL_AFTER:-}" == "skills" ]]; then
   echo "test failpoint after skills" >&2

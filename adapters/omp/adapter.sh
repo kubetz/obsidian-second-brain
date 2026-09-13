@@ -114,6 +114,8 @@ _omp_emit_agents() {
 2. Read `_AGENTS.md` at the vault root before reading or writing vault content.
 3. Prefer `.agents/commands` and `.agents/skills` for obsidian-second-brain workflows.
 4. Enforce `.agents/skills/obsidian-core/references/ai-first-rules.md`; if that path does not resolve from your working directory, search upward for it, and if you still cannot read it, say so before writing. Every created or updated note uses `## For future agent`.
+5. Research-toolkit API keys live in `~/.config/obsidian-second-brain/.env` (mode 600, outside the vault); read that file when a workflow (`/research`, `/research-deep`, `/x-read`, `/x-pulse`, `/youtube`, `/notebooklm`, `/podcast`) needs a credential instead of searching the vault for one. The shell environment can disagree with that file - keys may be exported there while `OBSIDIAN_VAULT_PATH` is not - so read the file rather than inferring configuration from exported variables. `YOUTUBE_API_KEY` covers metadata and comments only - transcripts come from `yt-dlp` or `youtube-transcript-api`, never from a key.
+6. If `yt-dlp --write-auto-sub --sub-lang en` fails with `HTTP 429`, retry with `--sub-lang en-orig --sub-format json3` before concluding the video has no captions; browser cookies do not change it, because the limit is on that caption track rather than on authentication.
 EOF
 }
 
@@ -130,5 +132,14 @@ bash install.sh omp --vault /absolute/path/to/vault
 ```
 
 Invoke an installed workflow with `/name [args]` or `/skill:<name> [args]`.
+
+## Research toolkit
+
+The research commands (`/research`, `/research-deep`, `/x-read`, `/x-pulse`,
+`/youtube`, `/notebooklm`, `/podcast`) need the same API keys as the other
+platforms. Copy `.env.example` to `~/.config/obsidian-second-brain/.env`, set
+permissions to `600`, and paste in the required keys. The obsidian-core scripts
+read that file themselves, and variables exported into the shell take precedence
+over it.
 EOF
 }
