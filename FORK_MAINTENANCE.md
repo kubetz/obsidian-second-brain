@@ -127,6 +127,12 @@ Preflight source, collisions, ownership, and the root guide before touching the
 vault. Updates may replace or remove only previous manifest-owned entries; all
 other `.agents` content is user-owned.
 
+The shared engine's `.venv` is runtime state inside a manifest-owned skill, not
+shipped content: the installer renames it aside for the replacement and renames
+it back, and never copies it. Copying it re-traverses a venv's symlinks, which a
+venv that already went through a copy can fail on outright, and it would carry a
+build-tree venv into the vault. A forward port must keep that asymmetry.
+
 ## Things that must not return
 
 - Source-tree neutralization or neutralization of a non-OMP build.

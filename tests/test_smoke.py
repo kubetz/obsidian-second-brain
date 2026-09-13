@@ -893,8 +893,46 @@ def test_omp_installer_rolls_back_after_the_skills_failpoint(tmp_path):
     assert not new_this_run.exists()
     assert not list(agents.glob(".obsidian-second-brain-stage.*"))
     assert not list(agents.glob(".obsidian-second-brain-backup.*"))
+    assert not list(agents.glob(".obsidian-second-brain-runtime.*"))
     assert not list(agents.glob(".obsidian-second-brain-journal.*"))
     assert _tree_snapshot(agents) == before_agents
+
+
+def test_omp_installer_preserves_skill_runtime_state_on_update(tmp_path):
+    """The shared engine's virtualenv lives inside a manifest-owned skill, so an
+    update must neither copy it nor delete it.  `cp -a` on a venv traverses the
+    symlinks a venv legitimately contains, and one that has been through a copy
+    before can hold a link that traversal fails on - seen in the field as
+    "chflags: .venv/bin/python3: Too many levels of symbolic links", which
+    aborted the install and rolled it back."""
+    vault = _make_omp_vault(tmp_path)
+    initial = _run_omp_install(vault)
+    assert initial.returncode == 0, initial.stdout + initial.stderr
+
+    venv = vault / ".agents/skills/obsidian-core/.venv"
+    (venv / "bin").mkdir(parents=True)
+    (venv / "pyvenv.cfg").write_text("home = /opt/python\n", encoding="utf-8")
+    (venv / "bin" / "marker").write_text("runtime state\n", encoding="utf-8")
+    # An interpreter link pair that resolves to itself: nothing the installer
+    # does may try to follow it.
+    (venv / "bin" / "python").symlink_to("python3")
+    (venv / "bin" / "python3").symlink_to("python")
+    before_files = _tree_snapshot(venv)
+    before_links = {
+        path.relative_to(venv).as_posix(): os.readlink(path)
+        for path in venv.rglob("*")
+        if path.is_symlink()
+    }
+
+    again = _run_omp_install(vault)
+    assert again.returncode == 0, again.stdout + again.stderr
+    assert _tree_snapshot(venv) == before_files
+    assert {
+        path.relative_to(venv).as_posix(): os.readlink(path)
+        for path in venv.rglob("*")
+        if path.is_symlink()
+    } == before_links
+    assert not list((vault / ".agents").glob(".obsidian-second-brain-runtime.*"))
 
 
 def test_vault_health_json_reports_clean_linked_vault(tmp_path):
