@@ -237,7 +237,7 @@ Free transcript via youtube-transcript-api. Optional metadata + top comments via
 ```
   +------------------------------------------+
   |                                          |
-  |   LAYER 1: Operations (30 commands)      |
+  |   LAYER 1: Operations (32 commands)      |
   |   Claude remembers everything            |
   |                                          |
   +------------------------------------------+
